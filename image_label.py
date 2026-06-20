@@ -36,7 +36,11 @@ class ImageLabel(QLabel):
             self.pan_start = event.pos()
         elif self.viewer.current_tool == "Select" and event.button() == Qt.LeftButton:
             self.selection_start = event.pos()
-        elif event.button() == Qt.LeftButton and self.viewer.current_tool not in ["Move", "Select"]:
+        elif self.viewer.current_tool == "Smart Caliper" and event.button() == Qt.LeftButton:
+            self.last_point = event.pos()
+            if self.viewer.image_array is not None:
+                self.viewer.apply_smart_caliper(self, event.pos())
+        elif event.button() == Qt.LeftButton and self.viewer.current_tool not in ["Move", "Select", "Smart Caliper"]:
             self.last_point = event.pos()
             self.is_drawing = True
             if self.viewer.image_array is not None:

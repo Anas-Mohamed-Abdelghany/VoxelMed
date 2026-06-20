@@ -31,12 +31,16 @@ class ImageProcessingMixin:
 
                 self.notification_label.setText("Image loaded successfully.")
                 self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
+                self.spacing = image.GetSpacing()
+                self.caliper_lines = [None, None, None]
 
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = file_name
             else:
                 self.segmentation_mask = None
+                self.spacing = (1.0, 1.0, 1.0)
+                self.caliper_lines = [None, None, None]
                 self.notification_label.setText(
                     "Error: Image data is invalid or could not be loaded."
                 )
@@ -52,6 +56,8 @@ class ImageProcessingMixin:
                     self.image_labels[i].clear()
 
                 self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
+                self.spacing = image.GetSpacing()
+                self.caliper_lines = [None, None, None]
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = nifti_path
@@ -135,6 +141,10 @@ class ImageProcessingMixin:
         # Overlay segmentation mask on top so paint is always visible
         if self.segmentation_mask is not None:
             color_img[mask_slice > 0] = self.drawing_color
+
+        # Overlay active caliper measurement if present
+        if hasattr(self, "caliper_lines") and self.caliper_lines[index] is not None:
+            self.draw_caliper_overlay(color_img, index)
 
         height_px, width_px = color_img.shape[:2]
 
@@ -345,3 +355,186 @@ class ImageProcessingMixin:
     def rotate_image(self, index, angle):
         self.rotation_angles[index] = angle
         self.update_image_slice(index)
+
+    def draw_caliper_overlay(self, image, index):
+        if not hasattr(self, "caliper_lines") or self.caliper_lines[index] is None:
+            return
+            
+        p1, p2, diameter = self.caliper_lines[index]
+        x1, y1 = p1
+        x2, y2 = p2
+        
+        # Color of caliper: Cyan (0, 255, 255)
+        color = (0, 255, 255)
+        thickness = 2
+        
+        # Draw main caliper line
+        cv2.line(image, (x1, y1), (x2, y2), color, thickness)
+        
+        # Calculate perpendicular tick marks
+        dx = x2 - x1
+        dy = y2 - y1
+        length = np.hypot(dx, dy)
+        if length > 0:
+            ux = dx / length
+            uy = dy / length
+            
+            # Perpendicular vector
+            px = -uy
+            py = ux
+            
+            tick_size = 6  # Total tick length is 12 pixels
+            
+            # Tick at P1
+            pt1_a = (int(round(x1 + tick_size * px)), int(round(y1 + tick_size * py)))
+            pt1_b = (int(round(x1 - tick_size * px)), int(round(y1 - tick_size * py)))
+            cv2.line(image, pt1_a, pt1_b, color, thickness)
+            
+            # Tick at P2
+            pt2_a = (int(round(x2 + tick_size * px)), int(round(y2 + tick_size * py)))
+            pt2_b = (int(round(x2 - tick_size * px)), int(round(y2 - tick_size * py)))
+            cv2.line(image, pt2_a, pt2_b, color, thickness)
+            
+            # Draw diameter text next to the line midpoint
+            mx = (x1 + x2) // 2
+            my = (y1 + y2) // 2
+            
+            # Format text
+            text = f"{diameter:.1f} mm"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.5
+            text_thickness = 1
+            
+            # Get text size for background box
+            (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, text_thickness)
+            
+            # Offset text slightly from the line
+            tx = int(round(mx + 8 * px - text_w / 2))
+            ty = int(round(my + 8 * py + text_h / 2))
+            
+            # Clamp to image boundaries
+            h, w = image.shape[:2]
+            tx = max(2, min(w - text_w - 2, tx))
+            ty = max(text_h + 2, min(h - 2, ty))
+            
+            # Draw small black background box for readability
+            cv2.rectangle(image, (tx - 2, ty - text_h - 2), (tx + text_w + 2, ty + 2), (0, 0, 0), -1)
+            # Draw text
+            cv2.putText(image, text, (tx, ty), font, font_scale, color, text_thickness, cv2.LINE_AA)
+
+    def apply_smart_caliper(self, label, pos):
+        index = self.image_labels.index(label)
+        coords = self.get_raw_pixel_from_pos(index, pos)
+        if not coords or self.image_array is None:
+            return
+            
+        x_c, y_c = coords
+        
+        # Update the crosshair position to the clicked point
+        self.update_crosshairs(index, pos)
+        
+        # Get active slice image
+        slice_index = self.current_slice[index]
+        if index == 0:      # Axial
+            slice_img  = self.image_array[slice_index, :, :]
+            spacing_col = self.spacing[0]
+            spacing_row = self.spacing[1]
+        elif index == 1:    # Sagittal
+            slice_img  = self.image_array[:, :, slice_index]
+            spacing_col = self.spacing[1]
+            spacing_row = self.spacing[2]
+        else:               # Coronal
+            slice_img  = self.image_array[:, slice_index, :]
+            spacing_col = self.spacing[0]
+            spacing_row = self.spacing[2]
+            
+        height, width = slice_img.shape[:2]
+        
+        # Local window of size 100x100
+        W_size = 100
+        x_min = max(0, x_c - W_size // 2)
+        x_max = min(width - 1, x_c + W_size // 2)
+        y_min = max(0, y_c - W_size // 2)
+        y_max = min(height - 1, y_c + W_size // 2)
+        
+        local_img = slice_img[y_min:y_max+1, x_min:x_max+1]
+        if local_img.size == 0:
+            return
+            
+        # Normalize local image to 0-255 uint8
+        win_min, win_max = local_img.min(), local_img.max()
+        if win_max > win_min:
+            local_norm = ((local_img - win_min) / (win_max - win_min) * 255.0).astype(np.uint8)
+        else:
+            local_norm = np.zeros_like(local_img, dtype=np.uint8)
+            
+        # Apply Otsu's thresholding
+        blurred = cv2.GaussianBlur(local_norm, (5, 5), 0)
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Determine the foreground class based on seed pixel
+        x_seed_local = x_c - x_min
+        y_seed_local = y_c - y_min
+        
+        # Prevent index error in case seed pixel calculation lies outside boundaries
+        y_seed_local = max(0, min(thresh.shape[0] - 1, y_seed_local))
+        x_seed_local = max(0, min(thresh.shape[1] - 1, x_seed_local))
+        
+        if thresh[y_seed_local, x_seed_local] == 0:
+            thresh = cv2.bitwise_not(thresh)
+            
+        # Get connected components
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(thresh)
+        seed_label = labels[y_seed_local, x_seed_local]
+        
+        if seed_label == 0:
+            # If seed is in background (e.g. edge cases), do nothing
+            return
+            
+        # Extract the component mask
+        component_mask = (labels == seed_label).astype(np.uint8) * 255
+        
+        # Find contours
+        contours, _ = cv2.findContours(component_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        if not contours:
+            return
+            
+        # Use the contour
+        contour = contours[0]
+        pts = []
+        for pt in contour:
+            gx = x_min + pt[0][0]
+            gy = y_min + pt[0][1]
+            pts.append((gx, gy))
+            
+        # Calculate maximum physical/RECIST diameter pairwise
+        max_dist = -1.0
+        best_p1 = (x_c, y_c)
+        best_p2 = (x_c, y_c)
+        
+        # Optimize search if too many points
+        n_pts = len(pts)
+        if n_pts > 400:
+            step = n_pts // 200
+            pts = pts[::step]
+            n_pts = len(pts)
+            
+        for i in range(n_pts):
+            for j in range(i + 1, n_pts):
+                dx = (pts[i][0] - pts[j][0]) * spacing_col
+                dy = (pts[i][1] - pts[j][1]) * spacing_row
+                dist = np.hypot(dx, dy)
+                if dist > max_dist:
+                    max_dist = dist
+                    best_p1 = pts[i]
+                    best_p2 = pts[j]
+                    
+        # Update caliper state
+        self.caliper_lines[index] = (best_p1, best_p2, max_dist)
+        
+        # Update views to show the caliper
+        self.update_image_slice(index)
+        
+        # Show a notification text
+        self.notification_label.setText(f"Smart-Caliper: {max_dist:.1f} mm")
+        self.notification_label.setStyleSheet("color: #00ffff; font-size: 14px; font-weight: bold;")

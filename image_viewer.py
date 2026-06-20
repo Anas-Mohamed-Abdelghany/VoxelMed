@@ -98,9 +98,13 @@ class ImageViewer(
         self.v_offset        = [0, 0, 0]
         self.rotation_angles = [0, 180, 180]
 
+        # Voxel spacing and caliper measurements
+        self.spacing         = (1.0, 1.0, 1.0)
+        self.caliper_lines   = [None, None, None]
+
         # Tool selector (also used by SegmentationMixin)
         self.segmentation_tools = QComboBox()
-        self.segmentation_tools.addItems(["Move", "Brush", "Eraser", "Select"])
+        self.segmentation_tools.addItems(["Move", "Brush", "Smart Brush", "Eraser", "Select", "Smart Caliper"])
         self.segmentation_tools.currentTextChanged.connect(self.update_current_tool)
         self.current_tool = "Move"
 

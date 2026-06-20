@@ -276,6 +276,9 @@ class UIBuilderMixin:
             else:
                 self.segmentation_mask[:, self.current_slice[2], :] = 0
 
+        if hasattr(self, "caliper_lines"):
+            self.caliper_lines[index] = None
+
         self.update_image_slice(index)
 
     # -------------------------------------------------------- file I/O helpers

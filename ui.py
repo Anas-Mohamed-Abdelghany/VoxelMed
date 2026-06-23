@@ -15,7 +15,8 @@ from PyQt5.QtWidgets import (
     QFrame, QGridLayout, QLabel, QSlider, QSizePolicy,
     QVBoxLayout, QHBoxLayout, QPushButton, QDockWidget, QWidget,
     QComboBox, QSpinBox, QToolBar, QAction, QFileDialog, QApplication,
-    QScrollArea,
+    QScrollArea, QGroupBox, QCheckBox, QButtonGroup, QRadioButton,
+    QStackedWidget,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
@@ -100,8 +101,6 @@ class UIBuilderMixin:
 
         toolbar.addSeparator()
 
-
-
         help_action = QAction(QIcon.fromTheme("help-contents"), "Help", self)
         help_action.triggered.connect(self.show_help)
         toolbar.addAction(help_action)
@@ -114,14 +113,273 @@ class UIBuilderMixin:
     def show_settings_page(self):
         self.settings_btn.setChecked(True)
         self.ai_seg_btn.setChecked(False)
+        self.lab_btn.setChecked(False)
         self.settings_page.setVisible(True)
         self.segmentation_page.setVisible(False)
+        if hasattr(self, 'lab_page'):
+            self.lab_page.setVisible(False)
+        if self._lab_active:
+            self._exit_lab_mode()
 
     def show_segmentation_page(self):
         self.settings_btn.setChecked(False)
         self.ai_seg_btn.setChecked(True)
+        self.lab_btn.setChecked(False)
         self.settings_page.setVisible(False)
         self.segmentation_page.setVisible(True)
+        if hasattr(self, 'lab_page'):
+            self.lab_page.setVisible(False)
+        if self._lab_active:
+            self._exit_lab_mode()
+
+    def show_lab_page(self):
+        self.settings_btn.setChecked(False)
+        self.ai_seg_btn.setChecked(False)
+        self.lab_btn.setChecked(True)
+        self.settings_page.setVisible(False)
+        self.segmentation_page.setVisible(False)
+        self.lab_page.setVisible(True)
+
+    def _build_lab_sidebar_page(self, layout):
+        """Build the 3D Lab control panel in the sidebar."""
+        # Title
+        title = QLabel("3D Lab")
+        title.setStyleSheet("font-weight: bold; font-size: 14px; color: #005577; padding: 0 8px;")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Cut, crop, and peel away layers to see inside the volume.")
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet("color: #666666; font-size: 10px; padding: 0 8px 4px 8px;")
+        layout.addWidget(subtitle)
+
+        # Scroll area for the controls (sidebar is 265px wide, need scroll for many controls)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; } QScrollBar:vertical { width: 6px; }")
+
+        inner = QWidget()
+        inner.setStyleSheet("background-color: white;")
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(8, 4, 8, 4)
+        inner_layout.setSpacing(4)
+
+        # -- Box Crop --
+        box = QGroupBox("Box Crop")
+        box.setStyleSheet(self._lab_group_style())
+        bv = QVBoxLayout(box)
+        info = QLabel("Drag the box handles in the 3D view to cut away everything outside the box.")
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #555555; font-size: 11px;")
+        bv.addWidget(info)
+        self._lab_box_crop_checkbox = QCheckBox("Enable box crop")
+        self._lab_box_crop_checkbox.setStyleSheet("color: #333333; font-size: 11px;")
+        self._lab_box_crop_checkbox.stateChanged.connect(self._on_lab_box_crop_toggled)
+        bv.addWidget(self._lab_box_crop_checkbox)
+        inner_layout.addWidget(box)
+
+        inner_layout.addWidget(self._lab_hline())
+
+        # -- Orthogonal Clips --
+        clip_box = QGroupBox("Orthogonal Clips")
+        clip_box.setStyleSheet(self._lab_group_style())
+        cv = QVBoxLayout(clip_box)
+        cinfo = QLabel("Slide to cut the volume along an axis. 'Flip' swaps which half is removed.")
+        cinfo.setWordWrap(True)
+        cinfo.setStyleSheet("color: #555555; font-size: 11px;")
+        cv.addWidget(cinfo)
+
+        self._lab_clip_checkboxes = {}
+        self._lab_clip_sliders = {}
+        axis_dims = None
+
+        for axis in ["x", "y", "z"]:
+            row = QHBoxLayout()
+            cb = QCheckBox(axis.upper())
+            cb.setFixedWidth(30)
+            cb.setStyleSheet("color: #333333; font-size: 11px;")
+            cb.stateChanged.connect(lambda state, a=axis: self._on_lab_clip_toggled(a, state))
+            row.addWidget(cb)
+            self._lab_clip_checkboxes[axis] = cb
+
+            slider = QSlider(Qt.Horizontal)
+            slider.setMinimum(0)
+            slider.setMaximum(100)
+            slider.setValue(50)
+            slider.valueChanged.connect(lambda val, a=axis: self._on_lab_clip_slider(a, val))
+            row.addWidget(slider)
+            self._lab_clip_sliders[axis] = slider
+
+            flip_btn = QPushButton("Flip")
+            flip_btn.setFixedWidth(45)
+            flip_btn.clicked.connect(lambda checked, a=axis: self._on_lab_clip_flip(a))
+            row.addWidget(flip_btn)
+
+            cv.addLayout(row)
+        inner_layout.addWidget(clip_box)
+
+        inner_layout.addWidget(self._lab_hline())
+
+        # -- AI Segmentation --
+        ai_box = QGroupBox("AI Segmentation")
+        ai_box.setStyleSheet(self._lab_group_style())
+        av = QVBoxLayout(ai_box)
+        av.setContentsMargins(6, 4, 6, 6)
+        av.setSpacing(3)
+
+        self._lab_ai_stack = QStackedWidget()
+
+        # Page 0 — Run button
+        run_page = QWidget()
+        rp = QVBoxLayout(run_page)
+        rp.setContentsMargins(0, 0, 0, 0)
+        rp.setSpacing(2)
+
+        self._lab_ai_run_btn = QPushButton("Run AI Segmentation")
+        self._lab_ai_run_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #005577; color: white;
+                border: 1px solid #004466; border-radius: 4px;
+                padding: 5px; font-size: 11px;
+            }
+            QPushButton:hover  { background-color: #007799; }
+            QPushButton:disabled { background-color: #cccccc; color: #888888; border-color: #aaaaaa; }
+        """)
+        self._lab_ai_run_btn.clicked.connect(self._on_lab_ai_run)
+        rp.addWidget(self._lab_ai_run_btn)
+
+        self._lab_ai_progress = QLabel("")
+        self._lab_ai_progress.setWordWrap(True)
+        self._lab_ai_progress.setStyleSheet("color: #555555; font-size: 10px;")
+        self._lab_ai_progress.setVisible(False)
+        rp.addWidget(self._lab_ai_progress)
+
+        self._lab_ai_stack.addWidget(run_page)
+
+        # Page 1 — Controls (organ selector + two sliders)
+        ctrl_page = QWidget()
+        cp = QVBoxLayout(ctrl_page)
+        cp.setContentsMargins(0, 0, 0, 0)
+        cp.setSpacing(2)
+
+        organ_row = QHBoxLayout()
+        organ_lbl = QLabel("Organ:")
+        organ_lbl.setStyleSheet("color: #333333; font-size: 10px;")
+        organ_row.addWidget(organ_lbl)
+        self._lab_ai_organ_combo = QComboBox()
+        self._lab_ai_organ_combo.setStyleSheet(
+            "font-size: 10px; padding: 1px; color: #333333; "
+            "background-color: white; "
+            "QComboBox QAbstractItemView { color: #333333; background-color: white; selection-background-color: #cceeff; }"
+        )
+        self._lab_ai_organ_combo.currentIndexChanged.connect(self._on_lab_ai_organ_selected)
+        organ_row.addWidget(self._lab_ai_organ_combo, stretch=1)
+        cp.addLayout(organ_row)
+
+        olbl = QLabel("Organ opacity:")
+        olbl.setStyleSheet("color: #333333; font-size: 10px;")
+        cp.addWidget(olbl)
+        self._lab_ai_organ_slider = QSlider(Qt.Horizontal)
+        self._lab_ai_organ_slider.setRange(0, 100)
+        self._lab_ai_organ_slider.setValue(100)
+        self._lab_ai_organ_slider.valueChanged.connect(self._on_lab_ai_organ_opacity)
+        cp.addWidget(self._lab_ai_organ_slider)
+
+        rlbl = QLabel("Rest of volume opacity:")
+        rlbl.setStyleSheet("color: #333333; font-size: 10px;")
+        cp.addWidget(rlbl)
+        self._lab_ai_rest_slider = QSlider(Qt.Horizontal)
+        self._lab_ai_rest_slider.setRange(0, 100)
+        self._lab_ai_rest_slider.setValue(100)
+        self._lab_ai_rest_slider.valueChanged.connect(self._on_lab_ai_rest_opacity)
+        cp.addWidget(self._lab_ai_rest_slider)
+
+        self._lab_ai_stack.addWidget(ctrl_page)
+        self._lab_ai_stack.setCurrentIndex(0)
+
+        av.addWidget(self._lab_ai_stack)
+        inner_layout.addWidget(ai_box)
+
+        inner_layout.addWidget(self._lab_hline())
+
+        # -- Tissue Layers --
+        tissue_box = QGroupBox("Tissue Layers (intensity)")
+        tissue_box.setStyleSheet(self._lab_group_style())
+        tv = QVBoxLayout(tissue_box)
+        tinfo = QLabel("Peel back low-density tissue (skin/fat) to reveal denser structures (organs/bone).")
+        tinfo.setWordWrap(True)
+        tinfo.setStyleSheet("color: #555555; font-size: 11px;")
+        tv.addWidget(tinfo)
+
+        from volume_explorer_ui import TISSUE_PRESETS
+        preset_col = QVBoxLayout()
+        preset_col.setSpacing(1)
+        self._lab_tissue_preset_group = QButtonGroup(self)
+        for name in TISSUE_PRESETS:
+            btn = QRadioButton(name)
+            btn.setStyleSheet("font-size: 11px; color: #333333;")
+            if name == "All tissue":
+                btn.setChecked(True)
+            btn.toggled.connect(lambda checked, n=name: self._on_lab_tissue_preset(n, checked))
+            self._lab_tissue_preset_group.addButton(btn)
+            preset_col.addWidget(btn)
+        tv.addLayout(preset_col)
+
+        tv.addWidget(QLabel("lower-bound cutoff:"))
+        self._lab_tissue_threshold_slider = QSlider(Qt.Horizontal)
+        self._lab_tissue_threshold_slider.setRange(0, 255)
+        self._lab_tissue_threshold_slider.setValue(0)
+        self._lab_tissue_threshold_slider.valueChanged.connect(self._on_lab_tissue_threshold_changed)
+        tv.addWidget(self._lab_tissue_threshold_slider)
+
+        inner_layout.addWidget(tissue_box)
+
+        inner_layout.addWidget(self._lab_hline())
+
+        # Reset button
+        reset_btn = QPushButton("Reset All")
+        reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dddddd; color: #333333;
+                font-weight: bold; padding: 5px; border-radius: 4px;
+                font-size: 11px; border: 1px solid #cccccc;
+            }
+            QPushButton:hover { background-color: #cccccc; }
+        """)
+        reset_btn.clicked.connect(self._lab_reset_all)
+        inner_layout.addWidget(reset_btn)
+
+        inner_layout.addStretch()
+
+        scroll.setWidget(inner)
+        layout.addWidget(scroll)
+
+    def _lab_group_style(self):
+        return """
+            QGroupBox {
+                color: #333333;
+                font-weight: bold;
+                font-size: 12px;
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 6px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 4px;
+            }
+            QLabel { color: #555555; }
+            QCheckBox { color: #333333; }
+            QRadioButton { color: #333333; }
+        """
+
+    def _lab_hline(self):
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet("color: #cccccc;")
+        return line
 
     # -------------------------------------------------------------- sidebar
     def create_left_sidebar(self):
@@ -150,32 +408,36 @@ class UIBuilderMixin:
         self.settings_btn.setChecked(True)
         self.ai_seg_btn = QPushButton("AI Segmentation")
         self.ai_seg_btn.setCheckable(True)
+        self.lab_btn = QPushButton("3D Lab")
+        self.lab_btn.setCheckable(True)
 
         tab_style = """
             QPushButton {
-                background-color: #2a2a2a;
+                background-color: white;
                 color: #888888;
                 border: none;
-                border-bottom: 2px solid #444444;
+                border-bottom: 2px solid #cccccc;
                 padding: 10px 0px;
                 font-weight: bold;
                 font-size: 12px;
             }
             QPushButton:checked {
-                background-color: #1a1a2a;
-                color: #00ccff;
-                border-bottom: 2px solid #00ccff;
+                background-color: white;
+                color: #005577;
+                border-bottom: 2px solid #005577;
             }
             QPushButton:hover:!checked {
-                color: #aaaaaa;
-                border-bottom: 2px solid #666666;
+                color: #333333;
+                border-bottom: 2px solid #aaaaaa;
             }
         """
         self.settings_btn.setStyleSheet(tab_style)
         self.ai_seg_btn.setStyleSheet(tab_style)
+        self.lab_btn.setStyleSheet(tab_style)
 
         toggle_layout.addWidget(self.settings_btn)
         toggle_layout.addWidget(self.ai_seg_btn)
+        toggle_layout.addWidget(self.lab_btn)
         main_layout.addLayout(toggle_layout)
 
         # ---- content area ----
@@ -311,16 +573,26 @@ class UIBuilderMixin:
         seg_layout.addStretch(10)
 
 
+        # -- lab page (3D Lab controls) --
+        self.lab_page = QWidget()
+        lab_page_layout = QVBoxLayout(self.lab_page)
+        lab_page_layout.setContentsMargins(0, 0, 0, 0)
+        lab_page_layout.setSpacing(0)
+        self._build_lab_sidebar_page(lab_page_layout)
+
         # -- stack pages --
         content_layout.addWidget(self.settings_page)
         content_layout.addWidget(self.segmentation_page)
+        content_layout.addWidget(self.lab_page)
         self.segmentation_page.setVisible(False)
+        self.lab_page.setVisible(False)
 
         main_layout.addWidget(content_area)
 
         # -- connect toggle buttons --
         self.settings_btn.clicked.connect(self.show_settings_page)
         self.ai_seg_btn.clicked.connect(self.show_segmentation_page)
+        self.lab_btn.clicked.connect(self._enter_lab_mode)
 
         scroll_area.setWidget(main_widget)
         sidebar.setWidget(scroll_area)
@@ -429,6 +701,58 @@ class UIBuilderMixin:
     def show_help(self):
         from dialogs import show_help
         show_help(self)
+
+    def open_3d_lab(self):
+        """Open the standalone '3D Lab' window: a big 3D view with tools to
+        crop, clip, and peel away organ/tissue layers to see inside the
+        volume. Hands off the data already loaded in this window — does
+        not load anything new."""
+        if self.image_array is None:
+            self.notification_label.setText("Load an image before opening the 3D Lab.")
+            self.notification_label.setStyleSheet("color: red; font-size: 14px;")
+            return
+
+        from volume_explorer import VolumeExplorerWindow
+
+        # Reuse a single instance across opens rather than piling up windows.
+        if getattr(self, "_volume_explorer", None) is not None:
+            try:
+                self._volume_explorer.close()
+            except Exception:
+                pass
+            self._volume_explorer = None
+
+        has_mask = self.segmentation_mask is not None and np.any(self.segmentation_mask)
+        self._volume_explorer = VolumeExplorerWindow(
+            image_array=self.image_array,
+            spacing=self.spacing,
+            segmentation_mask=self.segmentation_mask if has_mask else None,
+            label_colormap=self.label_colormap if (has_mask and self.label_colormap) else None,
+            parent=self,
+        )
+
+        # If organs were detected via AI Segmentation, give the 3D Lab their
+        # real display names instead of generic "Region N" labels. We rebuild
+        # the label->name mapping the same way LandmarkDetector assigned
+        # label values (insertion order over the organ_map it was given),
+        # using the centroid lookup already cached in landmark_positions.
+        if self.label_colormap and self.landmark_positions:
+            # No direct reverse-lookup (label_val -> name) is stored on the
+            # viewer, so we rebuild it the same way LandmarkDetector assigned
+            # label values originally: insertion order over landmark_positions
+            # corresponds to label_idx + 1.
+            names_by_label = {}
+            names = list(self.landmark_positions.keys())
+            for i, name in enumerate(names):
+                label_val = i + 1
+                if label_val in self.label_colormap:
+                    names_by_label[label_val] = name
+            self._volume_explorer.set_organ_names(names_by_label)
+
+        self._volume_explorer.show()
+        self._volume_explorer.raise_()
+        self._volume_explorer.activateWindow()
+
 
     def get_active_view_index(self):
         """Returns the index of the active view. Placeholder – always returns 0."""

@@ -22,13 +22,14 @@ import numpy as np
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import (
     QPushButton, QLabel, QFrame, QWidget, QVBoxLayout, QHBoxLayout,
-    QCheckBox,
+    QCheckBox, QGridLayout,
 )
 
 from landmark_detector import (
     get_sections,
     get_section_description,
     get_organs_for_section,
+    get_all_organs,
     LandmarkDetector,
 )
 
@@ -183,6 +184,12 @@ class LandmarkNavMixin:
     def _on_masks_ready(self, combined_mask, label_map, landmarks):
         self.segmentation_mask = combined_mask
         self.label_colormap    = label_map
+        # Build label→name mapping from the same iteration order LandmarkDetector used
+        self._label_organ_names = {}
+        names = list(landmarks.keys())
+        for i, label_val in enumerate(sorted(label_map.keys())):
+            if i < len(names):
+                self._label_organ_names[label_val] = names[i]
         for i in range(3):
             self.update_image_slice(i)
 
@@ -195,9 +202,11 @@ class LandmarkNavMixin:
         self._run_status_label.setVisible(False)
         self.notification_label.setText("Landmark detection failed - see sidebar.")
         self.notification_label.setStyleSheet("color: red; font-size: 14px;")
-        self._detect_btn.setEnabled(True)
-        section = getattr(self, "_active_section", "")
-        self._detect_btn.setText(f"Run Segmentation — {section}")
+        section = getattr(self, "_active_section", None)
+        if section:
+            self._detect_btn.setEnabled(True)
+            self._detect_btn.setText(f"Run Segmentation — {section}")
+            self._detect_btn.setVisible(True)
 
     def _clear_landmark_highlight(self):
         self._landmark_highlight = False
@@ -238,6 +247,25 @@ class LandmarkNavMixin:
         """)
         map_btn.clicked.connect(self._show_class_map)
         sidebar_layout.addWidget(map_btn)
+
+        # -- Segment All button --
+        all_btn = QPushButton("Segment All")
+        all_btn.setToolTip("Run TotalSegmentator on all organs at once")
+        all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #004d40;
+                color: #80cbc4;
+                border: 1px solid #00695c;
+                border-radius: 4px;
+                padding: 6px 8px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #00695c; color: white; }
+            QPushButton:disabled { background-color: #333333; color: #666666; border: 1px solid #444444; }
+        """)
+        all_btn.clicked.connect(self._on_segment_all_clicked)
+        sidebar_layout.addWidget(all_btn)
 
         # -- Section buttons --
         section_container = QWidget()
@@ -324,6 +352,30 @@ class LandmarkNavMixin:
     # Section / organ helpers
     # ------------------------------------------------------------------
 
+    def _on_segment_all_clicked(self):
+        """Run TotalSegmentator on ALL organs across all sections."""
+        if self.image_array is None:
+            self._set_landmark_status("Load an image first.", "#ff6666")
+            return
+
+        self._active_section = None
+        self._selected_organs = set()
+        self.landmark_positions = {}
+
+        for sec in get_sections():
+            btn = self.findChild(QPushButton, f"section_btn_{sec}")
+            if btn and btn.isChecked():
+                btn.blockSignals(True)
+                btn.setChecked(False)
+                btn.blockSignals(False)
+
+        all_organs = get_all_organs()
+        self._set_landmark_status(f"Segmenting all ({len(all_organs)} organs)...", "#00ccff")
+        self._clear_organ_buttons()
+        self._detect_btn.setVisible(False)
+
+        self.run_landmark_detection(all_organs)
+
     def _on_section_clicked(self, section: str):
         """Called when a section button is clicked."""
         self._active_section  = section
@@ -348,33 +400,38 @@ class LandmarkNavMixin:
         self._populate_organ_checkboxes(section)
 
     def _populate_organ_checkboxes(self, section: str):
-        """Populate toggle buttons for all organs in the section."""
+        """Populate toggle buttons for all organs in the section (2‑column grid)."""
         container = self._get_landmark_buttons_container()
         if container is None:
             return
 
-        layout = container.layout()
-        if layout is None:
-            layout = QVBoxLayout(container)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(1)
-            container.setLayout(layout)
+        old_layout = container.layout()
+        if old_layout is not None:
+            while old_layout.count():
+                item = old_layout.takeAt(0)
+                w = item.widget()
+                if w:
+                    w.deleteLater()
+            QWidget().setLayout(old_layout)
 
-        self._clear_organ_buttons()
+        grid = QGridLayout(container)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(1)
+        container.setLayout(grid)
 
         organs = get_organs_for_section(section)
         if not organs:
             placeholder = QLabel("No organs configured for this section.")
             placeholder.setStyleSheet("color: #666666; font-size: 11px; font-style: italic;")
-            layout.addWidget(placeholder)
+            grid.addWidget(placeholder)
             return
 
         label = QLabel("Select organs, then click Run Segmentation:")
         label.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        layout.addWidget(label)
+        grid.addWidget(label, 0, 0, 1, 2)
 
         self._organ_checkboxes = {}
-        for name in organs:
+        for idx, name in enumerate(organs):
             btn = QPushButton(f"  {name}")
             btn.setObjectName(f"organ_btn_{name}")
             btn.setCheckable(True)
@@ -384,10 +441,10 @@ class LandmarkNavMixin:
                     background-color: #1a3a4a;
                     color: #88bbcc;
                     border: 1px solid #005577;
-                    border-radius: 4px;
-                    padding: 4px 8px;
+                    border-radius: 3px;
+                    padding: 2px 4px;
                     text-align: left;
-                    font-size: 12px;
+                    font-size: 10px;
                 }
                 QPushButton:hover {
                     background-color: #005577;
@@ -401,7 +458,7 @@ class LandmarkNavMixin:
                 }
             """)
             btn.toggled.connect(lambda checked, n=name: self._on_organ_toggled(n, checked))
-            layout.addWidget(btn)
+            grid.addWidget(btn, idx // 2 + 1, idx % 2)
             self._organ_checkboxes[name] = btn
 
         container.updateGeometry()
@@ -465,20 +522,25 @@ class LandmarkNavMixin:
         self._clear_organ_buttons()
 
         section = getattr(self, "_active_section", None)
-        if not section:
-            return
+        if section:
+            organs = get_organs_for_section(section)
+            selected = getattr(self, "_selected_organs", set())
+        else:
+            # "Segment All" mode — use all found organs
+            organs = list(self.landmark_positions.keys())
+            selected = set(organs)
 
-        organs = get_organs_for_section(section)
         if not organs:
             return
 
         found_count = sum(1 for n in organs if n in self.landmark_positions)
-        label = QLabel(f"Results ({found_count}/{len(self._selected_organs)} found):")
+        total = len(self._selected_organs) if self._selected_organs else len(organs)
+        label = QLabel(f"Results ({found_count}/{total} found):")
         label.setStyleSheet("color: #aaaaaa; font-size: 11px;")
         layout.addWidget(label)
 
         for name in organs:
-            was_selected = name in self._selected_organs
+            was_selected = name in selected
             is_found     = name in self.landmark_positions
 
             if is_found:

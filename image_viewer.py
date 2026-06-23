@@ -25,9 +25,11 @@ from image_processing import ImageProcessingMixin
 from segmentation     import SegmentationMixin
 from vtk_renderer     import VTKRendererMixin
 from ui               import UIBuilderMixin
+from landmark_nav     import LandmarkNavMixin
 
 
 class ImageViewer(
+    LandmarkNavMixin,
     ImageProcessingMixin,
     SegmentationMixin,
     VTKRendererMixin,
@@ -90,6 +92,11 @@ class ImageViewer(
 
         # Crosshairs
         self.crosshair_positions = [(0, 0), (0, 0), (0, 0)]
+
+        # Landmark navigation state (populated by LandmarkNavMixin)
+        self.landmark_positions  = {}
+        self.active_landmark     = None
+        self._landmark_highlight = False
 
         # Per-view brightness / contrast / offsets / rotation
         self.brightness      = [0, 0, 0]

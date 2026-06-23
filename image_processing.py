@@ -37,6 +37,7 @@ class ImageProcessingMixin:
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = file_name
+                self.run_landmark_detection()
             else:
                 self.segmentation_mask = None
                 self.spacing = (1.0, 1.0, 1.0)
@@ -61,6 +62,7 @@ class ImageProcessingMixin:
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = nifti_path
+                self.run_landmark_detection()
             else:
                 self.segmentation_mask = None
                 self.notification_label.setText(
@@ -145,6 +147,10 @@ class ImageProcessingMixin:
         # Overlay active caliper measurement if present
         if hasattr(self, "caliper_lines") and self.caliper_lines[index] is not None:
             self.draw_caliper_overlay(color_img, index)
+
+        # Overlay landmark highlight ring if AI navigation just fired
+        if getattr(self, "_landmark_highlight", False):
+            self.draw_landmark_highlight(color_img, index)
 
         height_px, width_px = color_img.shape[:2]
 

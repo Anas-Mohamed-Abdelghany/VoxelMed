@@ -236,6 +236,9 @@ class UIBuilderMixin:
 
             sidebar_layout.addWidget(view_settings_widget)
 
+        # AI landmark navigation section (added by LandmarkNavMixin)
+        self.create_landmark_sidebar_section(sidebar_layout)
+
         sidebar_layout.addWidget(self.notification_label)
         sidebar_layout.addStretch()
         

@@ -8,6 +8,20 @@ Application entry point.  Run with:
 
 import sys
 import os
+
+# Pre-load torch BEFORE PyQt5 takes over the process.
+# On Windows, importing torch for the first time inside a PyQt5 QThread
+# (after PyQt5 has already loaded its own C++ runtime DLLs) can fail with
+# "OSError: [WinError 1114] DLL initialization routine failed" for
+# torch\lib\c10.dll. Importing torch here, first, while the process DLL
+# search path is still clean, avoids that conflict. Safe no-op if torch /
+# TotalSegmentator are not installed — the AI landmark feature degrades
+# gracefully and the rest of the viewer is unaffected either way.
+try:
+    import torch  # noqa: F401
+except ImportError:
+    pass
+
 from PyQt5.QtWidgets import QApplication
 from image_viewer import ImageViewer
 

@@ -111,7 +111,7 @@ class ImageViewer(
 
         # Tool selector (also used by SegmentationMixin)
         self.segmentation_tools = QComboBox()
-        self.segmentation_tools.addItems(["Move", "Brush", "Smart Brush", "Eraser", "Select", "Smart Caliper"])
+        self.segmentation_tools.addItems(["Move", "Brush", "Eraser", "Smart Brush", "Smart Caliper"])
         self.segmentation_tools.currentTextChanged.connect(self.update_current_tool)
         self.current_tool = "Move"
 

@@ -6,8 +6,8 @@ Custom QLabel subclass that handles mouse interaction for each image view panel
 """
 
 from PyQt5.QtWidgets import QLabel
-from PyQt5.QtCore import Qt, QPoint, QRect
-from PyQt5.QtGui import QPainter, QPen, QCursor
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QCursor
 
 
 class ImageLabel(QLabel):
@@ -23,8 +23,6 @@ class ImageLabel(QLabel):
         self.zoom_mode = False
         self.zoom_center = None
         self.is_panning = False
-        self.selection_start = None
-        self.selection_end = None
         self.rotation_angle = 0  # stores the rotation angle for this view
         self.crosshair_locked = False  # right-click toggles this
         self.right_press_pos = None
@@ -34,13 +32,11 @@ class ImageLabel(QLabel):
             self.setCursor(QCursor(Qt.ClosedHandCursor))
             self.is_panning = True
             self.pan_start = event.pos()
-        elif self.viewer.current_tool == "Select" and event.button() == Qt.LeftButton:
-            self.selection_start = event.pos()
         elif self.viewer.current_tool == "Smart Caliper" and event.button() == Qt.LeftButton:
             self.last_point = event.pos()
             if self.viewer.image_array is not None:
                 self.viewer.apply_smart_caliper(self, event.pos())
-        elif event.button() == Qt.LeftButton and self.viewer.current_tool not in ["Move", "Select", "Smart Caliper"]:
+        elif event.button() == Qt.LeftButton and self.viewer.current_tool not in ["Move", "Smart Caliper"]:
             self.last_point = event.pos()
             self.is_drawing = True
             if self.viewer.image_array is not None:
@@ -64,10 +60,7 @@ class ImageLabel(QLabel):
             dy = event.y() - self.pan_start.y()
             self.viewer.pan_image(self.viewer.image_labels.index(self), dx, dy)
             self.pan_start = event.pos()
-        elif self.viewer.current_tool == "Select" and self.selection_start:
-            self.selection_end = event.pos()
-            self.update()
-        elif self.is_drawing and self.viewer.current_tool not in ["Move", "Select"]:
+        elif self.is_drawing and self.viewer.current_tool not in ["Move"]:
             self.viewer.continue_drawing(self, self.last_point, event.pos())
             self.last_point = event.pos()
             if self.viewer.image_array is not None:
@@ -88,11 +81,6 @@ class ImageLabel(QLabel):
         if self.viewer.current_tool == "Move" and event.button() == Qt.LeftButton:
             self.setCursor(QCursor(Qt.ArrowCursor))
             self.is_panning = False
-        elif self.viewer.current_tool == "Select" and event.button() == Qt.LeftButton:
-            self.selection_end = event.pos()
-            self.selection_start = None
-            self.selection_end = None
-            self.update()
         elif event.button() == Qt.LeftButton:
             self.is_drawing = False
             self.viewer.end_drawing()
@@ -108,7 +96,3 @@ class ImageLabel(QLabel):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        if self.selection_start and self.selection_end:
-            painter = QPainter(self)
-            painter.setPen(QPen(Qt.red, 2, Qt.DashLine))
-            painter.drawRect(QRect(self.selection_start, self.selection_end))

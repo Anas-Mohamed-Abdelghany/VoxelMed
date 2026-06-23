@@ -112,7 +112,7 @@ class UIBuilderMixin:
 
     # -------------------------------------------------------------- sidebar
     def create_left_sidebar(self):
-        sidebar = QDockWidget("More options", self)
+        sidebar = QDockWidget("Settings", self)
         sidebar.setFeatures(QDockWidget.NoDockWidgetFeatures)
         
         # Stop sidebar from changing width (increased slightly for scrollbar)

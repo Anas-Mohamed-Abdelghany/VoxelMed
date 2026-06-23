@@ -97,6 +97,15 @@ class ImageViewer(
         self.landmark_positions  = {}
         self.active_landmark     = None
         self._landmark_highlight = False
+        self.label_colormap      = {}
+        self._landmark_thread    = None
+        self._selected_organs    = set()
+        self._organ_checkboxes   = {}
+        self._active_section     = None
+        self._landmark_buttons_container = None
+
+        # Abdomen detection – segmentation tools only work on abdominal CT scans
+        self.is_abdomen = False
 
         # Per-view brightness / contrast / offsets / rotation
         self.brightness      = [0, 0, 0]

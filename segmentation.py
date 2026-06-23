@@ -82,6 +82,11 @@ class SegmentationMixin:
         if self.current_tool == "Move":
             return
 
+        if not self.is_abdomen:
+            self.notification_label.setText("Segmentation only works on abdominal CT scans.")
+            self.notification_label.setStyleSheet("color: red; font-size: 14px;")
+            return
+
         index = self.image_labels.index(label)
         
         start_coords = self.get_raw_pixel_from_pos(index, start)

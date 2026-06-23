@@ -33,11 +33,12 @@ class ImageProcessingMixin:
                 self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
                 self.spacing = image.GetSpacing()
                 self.caliper_lines = [None, None, None]
+                self.is_abdomen = "abdomen" in file_name.lower()
 
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = file_name
-                self.run_landmark_detection()
+                self._reset_ai_segmentation_ui()
             else:
                 self.segmentation_mask = None
                 self.spacing = (1.0, 1.0, 1.0)
@@ -59,10 +60,11 @@ class ImageProcessingMixin:
                 self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
                 self.spacing = image.GetSpacing()
                 self.caliper_lines = [None, None, None]
+                self.is_abdomen = "abdomen" in nifti_path.lower()
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = nifti_path
-                self.run_landmark_detection()
+                self._reset_ai_segmentation_ui()
             else:
                 self.segmentation_mask = None
                 self.notification_label.setText(
@@ -142,7 +144,12 @@ class ImageProcessingMixin:
 
         # Overlay segmentation mask on top so paint is always visible
         if self.segmentation_mask is not None:
-            color_img[mask_slice > 0] = self.drawing_color
+            colormap = getattr(self, 'label_colormap', None)
+            if colormap:
+                for label_val, color in colormap.items():
+                    color_img[mask_slice == label_val] = color
+            else:
+                color_img[mask_slice > 0] = self.drawing_color
 
         # Overlay active caliper measurement if present
         if hasattr(self, "caliper_lines") and self.caliper_lines[index] is not None:

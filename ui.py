@@ -110,53 +110,115 @@ class UIBuilderMixin:
         self.current_tool = tool_name
         self.segmentation_tools.setCurrentText(tool_name)
 
+    # -------------------------------------------------------------- sidebar mode switching
+    def show_settings_page(self):
+        self.settings_btn.setChecked(True)
+        self.ai_seg_btn.setChecked(False)
+        self.settings_page.setVisible(True)
+        self.segmentation_page.setVisible(False)
+
+    def show_segmentation_page(self):
+        self.settings_btn.setChecked(False)
+        self.ai_seg_btn.setChecked(True)
+        self.settings_page.setVisible(False)
+        self.segmentation_page.setVisible(True)
+
     # -------------------------------------------------------------- sidebar
     def create_left_sidebar(self):
-        sidebar = QDockWidget("Settings", self)
+        sidebar = QDockWidget("", self)
         sidebar.setFeatures(QDockWidget.NoDockWidgetFeatures)
-        
-        # Stop sidebar from changing width (increased slightly for scrollbar)
+        sidebar.setTitleBarWidget(QWidget())
+
         sidebar.setFixedWidth(265)
-        
-        # Add scroll area so we can scroll down
+
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        # Vertical line to separate sidebar
         scroll_area.setStyleSheet("QScrollArea { border: none; border-right: 2px solid #555555; }")
 
-        sidebar_widget = QWidget()
-        sidebar_layout = QVBoxLayout(sidebar_widget)
+        main_widget = QWidget()
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # ---- toggle buttons ----
+        toggle_layout = QHBoxLayout()
+        toggle_layout.setContentsMargins(0, 0, 0, 0)
+        toggle_layout.setSpacing(0)
+
+        self.settings_btn = QPushButton("Main")
+        self.settings_btn.setCheckable(True)
+        self.settings_btn.setChecked(True)
+        self.ai_seg_btn = QPushButton("AI Segmentation")
+        self.ai_seg_btn.setCheckable(True)
+
+        tab_style = """
+            QPushButton {
+                background-color: #2a2a2a;
+                color: #888888;
+                border: none;
+                border-bottom: 2px solid #444444;
+                padding: 10px 0px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:checked {
+                background-color: #1a1a2a;
+                color: #00ccff;
+                border-bottom: 2px solid #00ccff;
+            }
+            QPushButton:hover:!checked {
+                color: #aaaaaa;
+                border-bottom: 2px solid #666666;
+            }
+        """
+        self.settings_btn.setStyleSheet(tab_style)
+        self.ai_seg_btn.setStyleSheet(tab_style)
+
+        toggle_layout.addWidget(self.settings_btn)
+        toggle_layout.addWidget(self.ai_seg_btn)
+        main_layout.addLayout(toggle_layout)
+
+        # ---- content area ----
+        content_area = QWidget()
+        content_layout = QVBoxLayout(content_area)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+
+        # -- settings page (all the original sidebar content) --
+        self.settings_page = QWidget()
+        settings_layout = QVBoxLayout(self.settings_page)
+        settings_layout.setContentsMargins(8, 8, 8, 8)
 
         # Tool selection
-        sidebar_layout.addWidget(QLabel("Tool:"))
-        sidebar_layout.addWidget(self.segmentation_tools)
+        settings_layout.addWidget(QLabel("Tool:"))
+        settings_layout.addWidget(self.segmentation_tools)
 
         # Color selection
         color_button = QPushButton("Select Color")
         color_button.clicked.connect(self.select_color)
-        sidebar_layout.addWidget(color_button)
+        settings_layout.addWidget(color_button)
 
         # Brush size
-        sidebar_layout.addWidget(QLabel("Brush Size:"))
+        settings_layout.addWidget(QLabel("Brush Size:"))
         brush_size_slider = QSlider(Qt.Horizontal)
         brush_size_slider.setRange(1, 20)
         brush_size_slider.setValue(self.brush_thickness)
         brush_size_slider.valueChanged.connect(self.update_brush_size)
-        sidebar_layout.addWidget(brush_size_slider)
+        settings_layout.addWidget(brush_size_slider)
 
         # Eraser size
-        sidebar_layout.addWidget(QLabel("Eraser Size:"))
+        settings_layout.addWidget(QLabel("Eraser Size:"))
         eraser_size_slider = QSlider(Qt.Horizontal)
         eraser_size_slider.setRange(1, 20)
         eraser_size_slider.setValue(self.eraser_thickness)
         eraser_size_slider.valueChanged.connect(self.update_eraser_size)
-        sidebar_layout.addWidget(eraser_size_slider)
+        settings_layout.addWidget(eraser_size_slider)
 
         # Separator
         hline = QFrame()
         hline.setFrameShape(QFrame.HLine)
         hline.setFrameShadow(QFrame.Sunken)
-        sidebar_layout.addWidget(hline)
+        settings_layout.addWidget(hline)
 
         # Per-view settings
         for i, view_name in enumerate(["Axial", "Sagittal", "Coronal"]):
@@ -164,7 +226,7 @@ class UIBuilderMixin:
             view_settings_button.clicked.connect(
                 lambda checked, idx=i: self.toggle_view_settings(idx)
             )
-            sidebar_layout.addWidget(view_settings_button)
+            settings_layout.addWidget(view_settings_button)
 
             view_settings_widget = QWidget()
             view_settings_layout = QVBoxLayout(view_settings_widget)
@@ -181,7 +243,6 @@ class UIBuilderMixin:
             slice_header.addStretch()
             view_settings_layout.addLayout(slice_header)
             view_settings_layout.addWidget(self.sliders[i])
-
 
             zoom_in_button = QPushButton("Zoom In")
             zoom_in_button.clicked.connect(
@@ -234,15 +295,34 @@ class UIBuilderMixin:
             )
             view_settings_layout.addWidget(reset_button)
 
-            sidebar_layout.addWidget(view_settings_widget)
+            settings_layout.addWidget(view_settings_widget)
+
+        settings_layout.addWidget(self.notification_label)
+        settings_layout.addStretch()
+
+        # -- segmentation page --
+        self.segmentation_page = QWidget()
+        seg_layout = QVBoxLayout(self.segmentation_page)
+        seg_layout.setContentsMargins(4, 2, 4, 2)
+        seg_layout.setSpacing(2)
 
         # AI landmark navigation section (added by LandmarkNavMixin)
-        self.create_landmark_sidebar_section(sidebar_layout)
+        self.create_landmark_sidebar_section(seg_layout)
+        seg_layout.addStretch(10)
 
-        sidebar_layout.addWidget(self.notification_label)
-        sidebar_layout.addStretch()
-        
-        scroll_area.setWidget(sidebar_widget)
+
+        # -- stack pages --
+        content_layout.addWidget(self.settings_page)
+        content_layout.addWidget(self.segmentation_page)
+        self.segmentation_page.setVisible(False)
+
+        main_layout.addWidget(content_area)
+
+        # -- connect toggle buttons --
+        self.settings_btn.clicked.connect(self.show_settings_page)
+        self.ai_seg_btn.clicked.connect(self.show_segmentation_page)
+
+        scroll_area.setWidget(main_widget)
         sidebar.setWidget(scroll_area)
         self.addDockWidget(Qt.LeftDockWidgetArea, sidebar)
 

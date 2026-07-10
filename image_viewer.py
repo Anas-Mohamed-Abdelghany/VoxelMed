@@ -154,6 +154,11 @@ class ImageViewer(
         # Abdomen detection – segmentation tools only work on abdominal CT scans
         self.is_abdomen = False
 
+        # Motion artifact restoration state
+        self._motion_restoration_active = False
+        self._restored_array = None
+        self._original_image_array = None
+
         # Per-view brightness / contrast / offsets / rotation
         self.brightness      = [0, 0, 0]
         self.contrast        = [1, 1, 1]
@@ -202,23 +207,25 @@ class ImageViewer(
         self.lab_renderer.ResetCamera()
 
         # If a segmentation mask already exists, populate organ controls
-        if self.segmentation_mask is not None and not self._lab_ai_seg_available:
-            self._lab_ai_seg_available = True
-            label_names = getattr(self, '_label_organ_names', {})
-            unique_labels = sorted(set(self.segmentation_mask[self.segmentation_mask > 0]))
-            self._lab_organ_name_list = []
-            self._lab_organ_names_by_label = {}
-            for label_val in unique_labels:
-                name = label_names.get(label_val, f"Region {label_val}")
-                self._lab_organ_names_by_label[label_val] = name
-                self._lab_organ_name_list.append(name)
-            self._lab_ai_organ_combo.blockSignals(True)
-            self._lab_ai_organ_combo.clear()
-            self._lab_ai_organ_combo.addItem("\u2014 None \u2014")
-            for name in self._lab_organ_name_list:
-                self._lab_ai_organ_combo.addItem(name)
-            self._lab_ai_organ_combo.blockSignals(False)
-            self._lab_ai_stack.setCurrentIndex(1)
+        if self.segmentation_mask is not None:
+            if not self._lab_ai_seg_available:
+                self._lab_ai_seg_available = True
+                label_names = getattr(self, '_label_organ_names', {})
+                unique_labels = sorted(set(self.segmentation_mask[self.segmentation_mask > 0]))
+                self._lab_organ_name_list = []
+                self._lab_organ_names_by_label = {}
+                for label_val in unique_labels:
+                    name = label_names.get(label_val, f"Region {label_val}")
+                    self._lab_organ_names_by_label[label_val] = name
+                    self._lab_organ_name_list.append(name)
+                self._lab_ai_organ_combo.blockSignals(True)
+                self._lab_ai_organ_combo.clear()
+                self._lab_ai_organ_combo.addItem("\u2014 None \u2014")
+                for name in self._lab_organ_name_list:
+                    self._lab_ai_organ_combo.addItem(name)
+                self._lab_ai_organ_combo.blockSignals(False)
+            if self._lab_ai_organ_combo.count() > 0:
+                self._lab_ai_stack.setCurrentIndex(1)
 
         self.lab_vtk_widget.GetRenderWindow().Render()
 
@@ -382,6 +389,7 @@ class ImageViewer(
 
     def _lab_apply_organ_layers(self):
         if self._use_label_map and self._label_opacity_funcs:
+            self._lab_volume_property.ShadeOn()
             for label_val, func in self._label_opacity_funcs.items():
                 if self._lab_selected_organ_label is not None and label_val == self._lab_selected_organ_label:
                     op = self._lab_organ_opacity
@@ -392,6 +400,7 @@ class ImageViewer(
                 func.AddPoint(1, op)
                 func.AddPoint(255, op)
         elif self._lab_label_volume is not None and self.segmentation_mask is not None:
+            self._lab_volume_property.ShadeOff()
             arr = self.image_array.astype(np.float64)
             amin, amax = arr.min(), arr.max()
             if amax > amin:
@@ -409,17 +418,12 @@ class ImageViewer(
                 scale[other] = self._lab_rest_opacity
             adjusted = np.clip(base_u8 * scale, 0, 255).astype(np.uint8)
             flipped = np.flip(adjusted, axis=0)
-            depth, height, width = self.image_array.shape
-            new_img = vtk.vtkImageData()
-            new_img.SetDimensions(width, height, depth)
-            sx, sy, sz = self.spacing if len(self.spacing) == 3 else (1.0, 1.0, 1.0)
-            new_img.SetSpacing(sx, sy, sz)
-            vtk_arr = numpy_support.numpy_to_vtk(
-                flipped.ravel(), deep=True, array_type=vtk.VTK_UNSIGNED_CHAR
-            )
-            new_img.GetPointData().SetScalars(vtk_arr)
-            self._lab_volume_mapper.SetInputData(new_img)
-            self._lab_vtk_image = new_img
+            # Modify the existing image data in-place for reliable VTK updates
+            existing_arr = self._lab_vtk_image.GetPointData().GetScalars()
+            np_arr = numpy_support.vtk_to_numpy(existing_arr)
+            np_arr[:] = flipped.ravel()
+            existing_arr.Modified()
+            self._lab_vtk_image.Modified()
             if self._lab_otf is not None:
                 self._lab_otf.RemoveAllPoints()
                 self._lab_otf.AddPoint(0, 0.0)
@@ -632,6 +636,19 @@ class ImageViewer(
         self._lab_apply_organ_layers()
         if self.lab_vtk_widget is not None:
             self.lab_vtk_widget.GetRenderWindow().Render()
+
+    # ======================================================================
+    # Motion artifact restoration handler
+    # ======================================================================
+    def _on_motion_restore_toggled(self, checked):
+        if checked:
+            if self._restored_array is not None:
+                self.toggle_motion_restoration()
+            else:
+                self.apply_motion_artifact_restoration()
+        else:
+            if self._motion_restoration_active:
+                self.toggle_motion_restoration()
 
     # ======================================================================
     # Clean shutdown — finalize MPR VTK before Qt tears down the window

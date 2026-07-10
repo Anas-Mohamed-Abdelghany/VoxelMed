@@ -193,6 +193,35 @@ class LandmarkNavMixin:
         for i in range(3):
             self.update_image_slice(i)
 
+        # Update the 3D Lab organ selector if the Lab UI has been built
+        if hasattr(self, '_lab_ai_organ_combo') and self._lab_ai_organ_combo is not None:
+            self._lab_ai_seg_available = True
+            self._lab_selected_organ_label = None
+            self._lab_organ_opacity = 1.0
+            self._lab_rest_opacity = 1.0
+
+            unique_labels = sorted(set(combined_mask[combined_mask > 0]))
+            self._lab_organ_name_list = []
+            self._lab_organ_names_by_label = {}
+            for label_val in unique_labels:
+                name = self._label_organ_names.get(label_val, f"Region {label_val}")
+                self._lab_organ_names_by_label[label_val] = name
+                self._lab_organ_name_list.append(name)
+
+            self._lab_ai_organ_combo.blockSignals(True)
+            self._lab_ai_organ_combo.clear()
+            self._lab_ai_organ_combo.addItem("\u2014 None \u2014")
+            for name in self._lab_organ_name_list:
+                self._lab_ai_organ_combo.addItem(name)
+            self._lab_ai_organ_combo.blockSignals(False)
+
+            # If the user is currently inside the 3D Lab, apply layers immediately
+            if getattr(self, '_lab_active', False) and hasattr(self, '_lab_apply_organ_layers'):
+                self._lab_ai_stack.setCurrentIndex(1)
+                self._lab_apply_organ_layers()
+                if self.lab_vtk_widget is not None:
+                    self.lab_vtk_widget.GetRenderWindow().Render()
+
     def _on_landmark_progress(self, message: str):
         self._run_status_label.setText(message)
         self._run_status_label.setVisible(True)

@@ -34,6 +34,7 @@ class ImageProcessingMixin:
                 self.spacing = image.GetSpacing()
                 self.caliper_lines = [None, None, None]
                 self.is_abdomen = "abdomen" in file_name.lower()
+                self._reset_motion_restoration()
 
                 self.update_image_slices()
                 self.render_3d_volume()
@@ -61,6 +62,7 @@ class ImageProcessingMixin:
                 self.spacing = image.GetSpacing()
                 self.caliper_lines = [None, None, None]
                 self.is_abdomen = "abdomen" in nifti_path.lower()
+                self._reset_motion_restoration()
                 self.update_image_slices()
                 self.render_3d_volume()
                 self.current_nifti_path = nifti_path
@@ -551,3 +553,102 @@ class ImageProcessingMixin:
         # Show a notification text
         self.notification_label.setText(f"Smart-Caliper: {max_dist:.1f} mm")
         self.notification_label.setStyleSheet("color: #00ffff; font-size: 14px; font-weight: bold;")
+
+    # ------------------------------------------------------------------
+    # Motion artifact restoration
+    # ------------------------------------------------------------------
+    def _reset_motion_restoration(self):
+        """Clear restoration state when a new volume is loaded."""
+        self._motion_restoration_active = False
+        self._restored_array = None
+        self._original_image_array = None
+        from PyQt5.QtWidgets import QAction
+        action = self.findChild(QAction, "motion_restore_action")
+        if action is not None:
+            action.setChecked(False)
+
+    def apply_motion_artifact_restoration(self):
+        """Reduce ghosting & motion blur on every slice of the loaded volume."""
+        if self.image_array is None:
+            return
+
+        if self._original_image_array is None:
+            self._original_image_array = self.image_array.copy()
+
+        from PyQt5.QtWidgets import QApplication
+        self.notification_label.setText("Restoring motion artifacts ...")
+        self.notification_label.setStyleSheet("color: blue; font-size: 14px;")
+        QApplication.processEvents()
+
+        try:
+            restored = self._motion_restoration_pipeline(self.image_array)
+            self._restored_array = restored
+            self.image_array = restored
+            self._motion_restoration_active = True
+
+            self.notification_label.setText("Motion artifact restoration applied.")
+            self.notification_label.setStyleSheet("color: green; font-size: 14px;")
+
+            self.update_image_slices()
+            if hasattr(self, 'render_3d_volume'):
+                self.render_3d_volume()
+        except Exception as e:
+            self.notification_label.setText(f"Restoration failed: {e}")
+            self.notification_label.setStyleSheet("color: red; font-size: 14px;")
+
+    def toggle_motion_restoration(self):
+        """Switch between the original volume and the restored volume."""
+        if self._motion_restoration_active:
+            if self._original_image_array is not None:
+                self.image_array = self._original_image_array
+                self._motion_restoration_active = False
+                self.notification_label.setText("Original image restored.")
+        else:
+            if self._restored_array is not None:
+                self.image_array = self._restored_array
+                self._motion_restoration_active = True
+                self.notification_label.setText("Restored image shown again.")
+
+        self.notification_label.setStyleSheet("color: green; font-size: 14px;")
+        self.update_image_slices()
+        if hasattr(self, 'render_3d_volume'):
+            self.render_3d_volume()
+
+    def _motion_restoration_pipeline(self, volume):
+        """
+        Per-slice pipeline: edge-preserving smoothing → unsharp masking
+        → contrast stretching.
+        """
+        orig_dtype = volume.dtype
+        v_min, v_max = float(volume.min()), float(volume.max())
+        v_range = max(v_max - v_min, 1.0)
+
+        result = np.empty(volume.shape, dtype=np.float64)
+
+        for i in range(volume.shape[0]):
+            slice_f = ((volume[i].astype(np.float64) - v_min) / v_range) * 255.0
+            slice_u8 = np.clip(slice_f, 0, 255).astype(np.uint8)
+
+            # 1. Edge-preserving denoising
+            smoothed = cv2.bilateralFilter(slice_u8, d=5, sigmaColor=30, sigmaSpace=30)
+
+            # 2. Unsharp masking
+            blurred = cv2.GaussianBlur(smoothed, (0, 0), sigmaX=1.5)
+            enhanced = cv2.addWeighted(smoothed, 1.5, blurred, -0.5, 0)
+
+            # 3. Contrast stretch (2nd–98th percentile)
+            p_low, p_high = np.percentile(enhanced, [2, 98])
+            if p_high > p_low:
+                stretched = np.clip(
+                    (enhanced.astype(np.float64) - p_low) / (p_high - p_low) * 255.0,
+                    0, 255,
+                )
+            else:
+                stretched = enhanced.astype(np.float64)
+
+            result[i] = stretched
+
+        # Map back to the original intensity range
+        result = result / 255.0 * v_range + v_min
+        np.clip(result, v_min, v_max, out=result)
+        return result.astype(orig_dtype)

@@ -101,6 +101,16 @@ class UIBuilderMixin:
 
         toolbar.addSeparator()
 
+        self.motion_restore_action = QAction(
+            QIcon.fromTheme("edit-redo"), "Motion Artifact Restoration", self
+        )
+        self.motion_restore_action.setObjectName("motion_restore_action")
+        self.motion_restore_action.setCheckable(True)
+        self.motion_restore_action.triggered.connect(self._on_motion_restore_toggled)
+        toolbar.addAction(self.motion_restore_action)
+
+        toolbar.addSeparator()
+
         help_action = QAction(QIcon.fromTheme("help-contents"), "Help", self)
         help_action.triggered.connect(self.show_help)
         toolbar.addAction(help_action)

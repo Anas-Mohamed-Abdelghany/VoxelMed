@@ -457,7 +457,7 @@ class LandmarkNavMixin:
 
         label = QLabel("Select organs, then click Run Segmentation:")
         label.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        grid.addWidget(label, 0, 0, 1, 2)
+        grid.addWidget(label, 0, 0, 1, 1)
 
         self._organ_checkboxes = {}
         for idx, name in enumerate(organs):
@@ -487,7 +487,7 @@ class LandmarkNavMixin:
                 }
             """)
             btn.toggled.connect(lambda checked, n=name: self._on_organ_toggled(n, checked))
-            grid.addWidget(btn, idx // 2 + 1, idx % 2)
+            grid.addWidget(btn, idx + 1, 0)
             self._organ_checkboxes[name] = btn
 
         container.updateGeometry()

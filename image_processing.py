@@ -40,6 +40,7 @@ class ImageProcessingMixin:
                 self.render_3d_volume()
                 self.current_nifti_path = file_name
                 self._reset_ai_segmentation_ui()
+                self.show_settings_page()
             else:
                 self.segmentation_mask = None
                 self.spacing = (1.0, 1.0, 1.0)
@@ -67,6 +68,7 @@ class ImageProcessingMixin:
                 self.render_3d_volume()
                 self.current_nifti_path = nifti_path
                 self._reset_ai_segmentation_ui()
+                self.show_settings_page()
             else:
                 self.segmentation_mask = None
                 self.notification_label.setText(

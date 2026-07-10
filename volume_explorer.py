@@ -396,18 +396,22 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
         else:
             base_u8 = np.zeros_like(arr)
 
-        scale = np.ones_like(base_u8, dtype=np.float64)
+        adjusted = base_u8.copy()
 
         if self._selected_organ_label is not None:
+            # Selected organ gets its own opacity slider
             sel = (self.segmentation_mask == self._selected_organ_label)
-            scale[sel] = self._organ_opacity
-            other = (self.segmentation_mask > 0) & (~sel)
-            scale[other] = self._rest_opacity
+            adjusted[sel] = base_u8[sel] * self._organ_opacity
+            # "Rest of volume" = everything EXCEPT the selected organ
+            # (other organs + unsegmented background)
+            rest = ~sel
+            adjusted[rest] = base_u8[rest] * self._rest_opacity
         else:
-            other = (self.segmentation_mask > 0)
-            scale[other] = self._rest_opacity
+            # No organ selected — "rest" controls background tissue only
+            background = (self.segmentation_mask == 0)
+            adjusted[background] = base_u8[background] * self._rest_opacity
 
-        adjusted = np.clip(base_u8 * scale, 0, 255).astype(np.uint8)
+        adjusted = np.clip(adjusted, 0, 255).astype(np.uint8)
         flipped = np.flip(adjusted, axis=0)
 
         # Build a fresh vtkImageData to force GPU re-upload
@@ -424,6 +428,13 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
 
         self.volume_mapper.SetInputData(new_img)
         self.vtk_image = new_img
+
+        # Replace OTF with a clean linear ramp so the intensity changes take effect
+        new_otf = vtk.vtkPiecewiseFunction()
+        new_otf.AddPoint(0, 0.0)
+        new_otf.AddPoint(255, 1.0)
+        self.volume_property.SetScalarOpacity(new_otf)
+        self.otf = new_otf
 
         self.vtk_widget.GetRenderWindow().Render()
 

@@ -390,15 +390,35 @@ class ImageViewer(
     def _lab_apply_organ_layers(self):
         if self._use_label_map and self._label_opacity_funcs:
             self._lab_volume_property.ShadeOn()
+            # Update per-organ label opacity
             for label_val, func in self._label_opacity_funcs.items():
                 if self._lab_selected_organ_label is not None and label_val == self._lab_selected_organ_label:
                     op = self._lab_organ_opacity
-                else:
+                elif self._lab_selected_organ_label is not None:
+                    # Other organs: controlled by rest slider when an organ is selected
                     op = self._lab_rest_opacity
+                else:
+                    # No organ selected: all organs stay at full opacity
+                    op = 1.0
                 func.RemoveAllPoints()
                 func.AddPoint(0, 0.0)
                 func.AddPoint(1, op)
                 func.AddPoint(255, op)
+            # Also scale the MAIN OTF for background/body tissue (label 0)
+            # This is what controls unlabeled voxels (skin, fat, body wall, etc.)
+            self._lab_otf.RemoveAllPoints()
+            rest_op = self._lab_rest_opacity
+            low, high = self._lab_tissue_low, self._lab_tissue_high
+            if low <= 0:
+                self._lab_otf.AddPoint(0, 0.0)
+            else:
+                self._lab_otf.AddPoint(0, 0.0)
+                self._lab_otf.AddPoint(max(0, low - 1), 0.0)
+            self._lab_otf.AddPoint(max(0, low), (0.05 if low > 0 else 0.0) * rest_op)
+            mid = (low + high) / 2.0
+            self._lab_otf.AddPoint(mid, 0.4 * rest_op)
+            self._lab_otf.AddPoint(min(255, high), 0.85 * rest_op)
+            self._lab_otf.AddPoint(255, 1.0 * rest_op)
         elif self._lab_label_volume is not None and self.segmentation_mask is not None:
             self._lab_volume_property.ShadeOff()
             arr = self.image_array.astype(np.float64)
@@ -407,16 +427,23 @@ class ImageViewer(
                 base_u8 = ((arr - amin) / (amax - amin) * 255.0)
             else:
                 base_u8 = np.zeros_like(arr)
-            scale = np.ones_like(base_u8, dtype=np.float64)
+
+            adjusted = base_u8.copy()
+
             if self._lab_selected_organ_label is not None:
+                # Selected organ gets its own opacity
                 sel = (self.segmentation_mask == self._lab_selected_organ_label)
-                scale[sel] = self._lab_organ_opacity
-                other = (self.segmentation_mask > 0) & (~sel)
-                scale[other] = self._lab_rest_opacity
+                adjusted[sel] = base_u8[sel] * self._lab_organ_opacity
+                # "Rest of volume" = everything EXCEPT the selected organ
+                # (other organs + unsegmented body tissue)
+                rest = ~sel
+                adjusted[rest] = base_u8[rest] * self._lab_rest_opacity
             else:
-                other = (self.segmentation_mask > 0)
-                scale[other] = self._lab_rest_opacity
-            adjusted = np.clip(base_u8 * scale, 0, 255).astype(np.uint8)
+                # No organ selected — "rest" controls background tissue only
+                background = (self.segmentation_mask == 0)
+                adjusted[background] = base_u8[background] * self._lab_rest_opacity
+
+            adjusted = np.clip(adjusted, 0, 255).astype(np.uint8)
             flipped = np.flip(adjusted, axis=0)
             # Modify the existing image data in-place for reliable VTK updates
             existing_arr = self._lab_vtk_image.GetPointData().GetScalars()
@@ -424,10 +451,15 @@ class ImageViewer(
             np_arr[:] = flipped.ravel()
             existing_arr.Modified()
             self._lab_vtk_image.Modified()
-            if self._lab_otf is not None:
-                self._lab_otf.RemoveAllPoints()
-                self._lab_otf.AddPoint(0, 0.0)
-                self._lab_otf.AddPoint(255, 1.0)
+            # Replace OTF with a fresh one so the property definitely picks up the change
+            new_otf = vtk.vtkPiecewiseFunction()
+            new_otf.AddPoint(0, 0.0)
+            new_otf.AddPoint(255, 1.0)
+            self._lab_volume_property.SetScalarOpacity(new_otf)
+            self._lab_otf = new_otf
+            self._lab_volume_property.Modified()
+            self._lab_volume_mapper.Modified()
+            self._lab_volume_mapper.Update()
 
         if self.lab_vtk_widget is not None:
             self.lab_vtk_widget.GetRenderWindow().Render()

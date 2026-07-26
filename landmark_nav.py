@@ -22,7 +22,7 @@ import numpy as np
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import (
     QPushButton, QLabel, QFrame, QWidget, QVBoxLayout, QHBoxLayout,
-    QCheckBox, QGridLayout,
+    QCheckBox, QGridLayout, QSizePolicy,
 )
 
 from landmark_detector import (
@@ -51,6 +51,7 @@ class LandmarkNavMixin:
         self.landmark_positions  = {}
         self.active_landmark     = None
         self._landmark_highlight = False
+        self._visible_mask_organs = set()
 
         count = len(organ_map) if organ_map else 0
         self._run_status_label.setText("Running TotalSegmentator...")
@@ -140,6 +141,8 @@ class LandmarkNavMixin:
         self._active_section     = None
         self._selected_organs    = set()
         self.label_colormap      = {}
+        self._organ_name_to_label = {}
+        self._visible_mask_organs = set()
 
         for sec in get_sections():
             btn = self.findChild(QPushButton, f"section_btn_{sec}")
@@ -190,6 +193,11 @@ class LandmarkNavMixin:
         for i, label_val in enumerate(sorted(label_map.keys())):
             if i < len(names):
                 self._label_organ_names[label_val] = names[i]
+        # Reverse mapping (organ name -> label value) so update_image_slice()
+        # can look up which single label to draw when an organ is clicked.
+        self._organ_name_to_label = {
+            name: label_val for label_val, name in self._label_organ_names.items()
+        }
         for i in range(3):
             self.update_image_slice(i)
 
@@ -574,8 +582,12 @@ class LandmarkNavMixin:
 
             if is_found:
                 z = self.landmark_positions[name][0]
-                btn = QPushButton(f"\u2192 {name} (sl. {z})")
-                btn.setStyleSheet("""
+
+                row = QHBoxLayout()
+                row.setSpacing(2)
+
+                nav_btn = QPushButton(f"\u2192 {name} (sl. {z})")
+                nav_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #1a3a4a;
                         color: #00ccff;
@@ -588,8 +600,45 @@ class LandmarkNavMixin:
                     QPushButton:hover  { background-color: #005577; color: white; }
                     QPushButton:pressed{ background-color: #007799; }
                 """)
-                btn.clicked.connect(lambda checked, n=name: self.navigate_to_landmark(n))
-                layout.addWidget(btn)
+                # Let this button shrink below its text's natural width
+                # (Qt will elide the label with "...") instead of forcing
+                # the row - and therefore the sidebar - wider than the
+                # panel, which was pushing the eye button off-screen and
+                # requiring horizontal scrolling to reach it.
+                nav_btn.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+                nav_btn.setMinimumWidth(0)
+                nav_btn.clicked.connect(lambda checked, n=name: self.navigate_to_landmark(n))
+                row.addWidget(nav_btn, stretch=1)
+
+                # Per-organ mask toggle - shows/hides this organ's colored
+                # mask on demand, independent of navigation.
+                mask_btn = QPushButton("\U0001F441")  # eye symbol
+                mask_btn.setObjectName(f"mask_toggle_btn_{name}")
+                mask_btn.setToolTip(f"Show/hide the segmentation mask for {name}")
+                mask_btn.setCheckable(True)
+                mask_btn.setChecked(name in getattr(self, "_visible_mask_organs", set()))
+                mask_btn.setFixedWidth(28)
+                mask_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                mask_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1a3a4a;
+                        color: #556677;
+                        border: 1px solid #005577;
+                        border-radius: 4px;
+                        padding: 4px 2px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover   { background-color: #005577; color: white; }
+                    QPushButton:checked {
+                        background-color: #00aa66;
+                        color: white;
+                        border: 1px solid #00ffaa;
+                    }
+                """)
+                mask_btn.toggled.connect(lambda checked, n=name: self._toggle_organ_mask(n, checked))
+                row.addWidget(mask_btn)
+
+                layout.addLayout(row)
             elif was_selected:
                 lbl = QLabel(f"{name} (not found)")
                 lbl.setStyleSheet("color: #555555; font-size: 11px; font-style: italic;")
@@ -598,6 +647,19 @@ class LandmarkNavMixin:
         self._detect_btn.setEnabled(True)
         section = getattr(self, "_active_section", "")
         self._detect_btn.setText(f"Run Segmentation \u2014 {section}")
+
+    def _toggle_organ_mask(self, name: str, checked: bool):
+        """Show or hide a single organ's segmentation mask on demand."""
+        if not hasattr(self, "_visible_mask_organs"):
+            self._visible_mask_organs = set()
+
+        if checked:
+            self._visible_mask_organs.add(name)
+        else:
+            self._visible_mask_organs.discard(name)
+
+        for i in range(3):
+            self.update_image_slice(i)
 
     # ------------------------------------------------------------------
     def _show_class_map(self):
@@ -642,13 +704,9 @@ class LandmarkNavMixin:
             lbl.setText(text)
             lbl.setStyleSheet(f"color: {color_hex}; font-size: 11px;")
 
-    def _clear_organ_buttons(self):
-        container = self._get_landmark_buttons_container()
-        if container is None:
-            return
-        layout = container.layout()
-        if layout is None:
-            return
+    def _clear_layout_recursive(self, layout):
+        """Remove and delete every widget in *layout*, recursing into any
+        nested sub-layouts (e.g. the per-organ [navigate][mask-toggle] rows)."""
         while layout.count():
             item = layout.takeAt(0)
             if item is None:
@@ -657,4 +715,17 @@ class LandmarkNavMixin:
             if w is not None:
                 w.setParent(None)
                 w.deleteLater()
+                continue
+            sub_layout = item.layout()
+            if sub_layout is not None:
+                self._clear_layout_recursive(sub_layout)
+
+    def _clear_organ_buttons(self):
+        container = self._get_landmark_buttons_container()
+        if container is None:
+            return
+        layout = container.layout()
+        if layout is None:
+            return
+        self._clear_layout_recursive(layout)
         self._organ_checkboxes = {}

@@ -146,13 +146,25 @@ class ImageProcessingMixin:
         # Draw crosshairs first (underneath)
         self.draw_crosshairs(color_img, index)
 
-        # Overlay segmentation mask on top so paint is always visible
+        # Overlay segmentation mask on top so paint is always visible.
+        # When AI segmentation results exist (colormap populated), only
+        # draw the organs the user has explicitly toggled on via the
+        # per-organ "Show mask" button (self._visible_mask_organs) —
+        # never draw every segmented organ at once.
         if self.segmentation_mask is not None:
             colormap = getattr(self, 'label_colormap', None)
             if colormap:
-                for label_val, color in colormap.items():
+                name_to_label = getattr(self, '_organ_name_to_label', {})
+                visible_organs = getattr(self, '_visible_mask_organs', set())
+                for name in visible_organs:
+                    label_val = name_to_label.get(name)
+                    if label_val is None:
+                        continue
+                    color = colormap.get(label_val, self.drawing_color)
                     color_img[mask_slice == label_val] = color
+                # else: organ not toggled on -> draw nothing, keep image clean
             else:
+                # Manual paint tool (no AI labels) - unchanged behaviour
                 color_img[mask_slice > 0] = self.drawing_color
 
         # Overlay active caliper measurement if present

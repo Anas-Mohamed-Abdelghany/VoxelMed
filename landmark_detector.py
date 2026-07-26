@@ -266,12 +266,24 @@ class LandmarkDetector(QThread):
                 continue
 
             mask_img = nib.load(mask_path)
-            mask_arr = (mask_img.get_fdata() > 0.5).astype(np.uint8)
+            mask_arr = (mask_img.get_fdata() > 0.5).astype(np.uint8)  # nibabel order: (X, Y, Z)
 
-            # Crop back to original dimensions if we padded
+            # Crop back to original dimensions if we padded (orig_shape is
+            # also nibabel-order (X, Y, Z), matching this array's current
+            # axis order at this point).
             if needs_pad:
-                dz, dy, dx = orig_shape
-                mask_arr = mask_arr[:dz, :dy, :dx]
+                ox, oy, oz = orig_shape
+                mask_arr = mask_arr[:ox, :oy, :oz]
+
+            # CRITICAL: nibabel loads NIfTI data as (X, Y, Z), but
+            # SimpleITK (used everywhere else in VoxelMed for
+            # self.image_array / vol_shape) presents volumes as
+            # (Z, Y, X) - numpy's reversed-axis convention. Without this
+            # transpose, the organ mask ends up axis-swapped relative to
+            # the CT volume: its width data lands on the depth axis and
+            # vice versa. That's what was causing masks to be drawn in
+            # completely wrong anatomical locations/shapes.
+            mask_arr = np.transpose(mask_arr, (2, 1, 0))  # -> (Z, Y, X)
 
             # Ensure mask shape matches vol_shape (TotalSegmentator can
             # occasionally produce off-by-one output dimensions)
@@ -290,10 +302,12 @@ class LandmarkDetector(QThread):
             combined_mask[mask_arr > 0] = label_val
             label_map[label_val] = LABEL_COLORMAP.get(label_val, (200, 200, 200))
 
-            cx_nifti, cy_nifti, cz_nifti = ndimage.center_of_mass(mask_arr)
-            z = int(np.clip(round(cz_nifti), 0, vol_shape[0] - 1))
-            y = int(np.clip(round(cy_nifti), 0, vol_shape[1] - 1))
-            x = int(np.clip(round(cx_nifti), 0, vol_shape[2] - 1))
+            # mask_arr is now (Z, Y, X) - same convention as combined_mask
+            # and self.image_array, so the centroid maps directly.
+            z_c, y_c, x_c = ndimage.center_of_mass(mask_arr)
+            z = int(np.clip(round(z_c), 0, vol_shape[0] - 1))
+            y = int(np.clip(round(y_c), 0, vol_shape[1] - 1))
+            x = int(np.clip(round(x_c), 0, vol_shape[2] - 1))
             landmarks[display_name] = (z, y, x)
 
         self.progress_update.emit(

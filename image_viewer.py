@@ -145,6 +145,8 @@ class ImageViewer(
         self.active_landmark     = None
         self._landmark_highlight = False
         self.label_colormap      = {}
+        self._organ_name_to_label = {}
+        self._visible_mask_organs = set()
         self._landmark_thread    = None
         self._selected_organs    = set()
         self._organ_checkboxes   = {}

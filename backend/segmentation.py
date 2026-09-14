@@ -6,7 +6,6 @@ Mixin that handles brush/eraser drawing onto the segmentation mask.
 
 import cv2
 import numpy as np
-from PyQt5.QtGui import QPainter, QPen, QColor
 from PyQt5.QtCore import Qt
 
 
@@ -80,11 +79,6 @@ class SegmentationMixin:
 
     def continue_drawing(self, label, start, end):
         if self.current_tool == "Move":
-            return
-
-        if not self.is_abdomen:
-            self.notification_label.setText("Segmentation only works on abdominal CT scans.")
-            self.notification_label.setStyleSheet("color: red; font-size: 14px;")
             return
 
         index = self.image_labels.index(label)

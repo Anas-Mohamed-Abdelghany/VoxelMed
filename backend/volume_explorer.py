@@ -43,7 +43,7 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QLabel
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
-from volume_explorer_ui import VolumeExplorerUIMixin, TISSUE_PRESETS
+from .volume_explorer_ui import VolumeExplorerUIMixin, TISSUE_PRESETS
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ class SegWorker(QThread):
                 )
 
             self.progress.emit("Loading results...")
-            from landmark_detector import get_all_organs, LABEL_COLORMAP
+            from .landmark_detector import get_all_organs, LABEL_COLORMAP
             all_stems = sorted(set(get_all_organs().values()))
             combined = np.zeros(orig_shape, dtype=np.uint8)
             label_map = {}
@@ -464,7 +464,7 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
         self._organ_opacity       = 1.0
         self._rest_opacity        = 1.0
 
-        from landmark_detector import get_all_organs
+        from .landmark_detector import get_all_organs
         all_organs = get_all_organs()
         all_stems_sorted = sorted(set(all_organs.values()))
         stem_to_name = {v: k for k, v in all_organs.items()}

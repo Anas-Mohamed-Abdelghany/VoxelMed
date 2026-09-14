@@ -21,12 +21,12 @@ from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 import vtkmodules.all as vtk
 from vtkmodules.util import numpy_support
 
-from image_label      import ImageLabel
-from image_processing import ImageProcessingMixin
-from segmentation     import SegmentationMixin
-from vtk_renderer     import VTKRendererMixin
-from ui               import UIBuilderMixin
-from landmark_nav     import LandmarkNavMixin
+from .image_label      import ImageLabel
+from .image_processing import ImageProcessingMixin
+from .segmentation     import SegmentationMixin
+from .vtk_renderer     import VTKRendererMixin
+from .ui               import UIBuilderMixin
+from .landmark_nav     import LandmarkNavMixin
 
 
 class ImageViewer(
@@ -40,7 +40,7 @@ class ImageViewer(
     def __init__(self):
         super().__init__()
         self.setWindowTitle("3D Medical Imaging Project")
-        self.setWindowIcon(QIcon("resources/unnamed.ico"))
+        self.setWindowIcon(QIcon())
         self.setGeometry(100, 100, 1600, 900)
 
         self.main_widget = QWidget()
@@ -153,10 +153,7 @@ class ImageViewer(
         self._active_section     = None
         self._landmark_buttons_container = None
 
-        # Abdomen detection – segmentation tools only work on abdominal CT scans
-        self.is_abdomen = False
-
-        # Motion artifact restoration state
+        # Segmentation mask organ name mapping (populated by landmark_nav.py)
         self._motion_restoration_active = False
         self._restored_array = None
         self._original_image_array = None
@@ -541,7 +538,7 @@ class ImageViewer(
     # 3D Lab AI segmentation handlers
     # ======================================================================
     def _on_lab_ai_run(self):
-        from volume_explorer import SegWorker
+        from .volume_explorer import SegWorker
         self._lab_ai_run_btn.setEnabled(False)
         self._lab_ai_run_btn.setText("Running\u2026")
         self._lab_ai_progress.setText("Starting\u2026")
@@ -562,7 +559,7 @@ class ImageViewer(
         self._lab_organ_opacity   = 1.0
         self._lab_rest_opacity    = 1.0
 
-        from landmark_detector import get_all_organs
+        from .landmark_detector import get_all_organs
         all_organs = get_all_organs()
         all_stems_sorted = sorted(set(all_organs.values()))
         stem_to_name = {v: k for k, v in all_organs.items()}
@@ -618,7 +615,7 @@ class ImageViewer(
     def _on_lab_tissue_preset(self, name, checked):
         if not checked:
             return
-        from volume_explorer_ui import TISSUE_PRESETS
+        from .volume_explorer_ui import TISSUE_PRESETS
         self._lab_tissue_low, self._lab_tissue_high = TISSUE_PRESETS[name]
         self._lab_tissue_threshold_slider.blockSignals(True)
         self._lab_tissue_threshold_slider.setValue(self._lab_tissue_low)

@@ -203,6 +203,24 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# Node.js
+node_modules/
+
+# Medical image data
+*.dcm
+*.nii
+*.nii.gz
+*.nrrd
+*.nhdr
+*.mhd
+*.mha
+
+# Model weights and large binaries
+*.pth
+*.pt
+*.onnx
+*.pkl
+
 # Ruff stuff:
 .ruff_cache/
 

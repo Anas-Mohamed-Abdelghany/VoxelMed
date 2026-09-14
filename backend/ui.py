@@ -44,7 +44,7 @@ class UIBuilderMixin:
             lambda value, idx=index: self.update_image_slice(idx)
         )
 
-        # Image label fills the section directly — no inner frame
+        # Image label fills the section directly
         image_label = self.image_labels[index]
         image_label.setFixedSize(*self.image_size)
         image_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -70,7 +70,6 @@ class UIBuilderMixin:
         """)
 
         self.layout.addWidget(section_widget, row, col)
-
 
     def get_section_title(self, index):
         return ["Axial", "Sagittal", "Coronal"][index] if index < 3 else "Unknown"
@@ -152,7 +151,6 @@ class UIBuilderMixin:
 
     def _build_lab_sidebar_page(self, layout):
         """Build the 3D Lab control panel in the sidebar."""
-        # Title
         title = QLabel("3D Lab")
         title.setStyleSheet("font-weight: bold; font-size: 14px; color: #005577; padding: 0 8px;")
         layout.addWidget(title)
@@ -162,7 +160,6 @@ class UIBuilderMixin:
         subtitle.setStyleSheet("color: #666666; font-size: 10px; padding: 0 8px 4px 8px;")
         layout.addWidget(subtitle)
 
-        # Scroll area for the controls (sidebar is 265px wide, need scroll for many controls)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: none; } QScrollBar:vertical { width: 6px; }")
@@ -200,7 +197,6 @@ class UIBuilderMixin:
 
         self._lab_clip_checkboxes = {}
         self._lab_clip_sliders = {}
-        axis_dims = None
 
         for axis in ["x", "y", "z"]:
             row = QHBoxLayout()
@@ -265,7 +261,7 @@ class UIBuilderMixin:
 
         self._lab_ai_stack.addWidget(run_page)
 
-        # Page 1 — Controls (organ selector + two sliders)
+        # Page 1 — Controls
         ctrl_page = QWidget()
         cp = QVBoxLayout(ctrl_page)
         cp.setContentsMargins(0, 0, 0, 0)
@@ -320,7 +316,11 @@ class UIBuilderMixin:
         tinfo.setStyleSheet("color: #555555; font-size: 11px;")
         tv.addWidget(tinfo)
 
-        from volume_explorer_ui import TISSUE_PRESETS
+        try:
+            from .volume_explorer_ui import TISSUE_PRESETS
+        except ImportError:
+            from volume_explorer_ui import TISSUE_PRESETS
+
         preset_col = QVBoxLayout()
         preset_col.setSpacing(1)
         self._lab_tissue_preset_group = QButtonGroup(self)
@@ -401,14 +401,15 @@ class UIBuilderMixin:
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("QScrollArea { border: none; border-right: 2px solid #555555; }")
+        scroll_area.setStyleSheet("QScrollArea { border: none; border-right: 2px solid #cccccc; background-color: #f6f6f6; }")
 
         main_widget = QWidget()
+        main_widget.setStyleSheet("background-color: #f6f6f6;")
         main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ---- toggle buttons ----
+        # ---- Top Mode Toggle Buttons (Main | AI Segmentation | 3D Lab) ----
         toggle_layout = QHBoxLayout()
         toggle_layout.setContentsMargins(0, 0, 0, 0)
         toggle_layout.setSpacing(0)
@@ -423,22 +424,22 @@ class UIBuilderMixin:
 
         tab_style = """
             QPushButton {
-                background-color: white;
-                color: #888888;
+                background-color: #f6f6f6;
+                color: #777777;
                 border: none;
-                border-bottom: 2px solid #cccccc;
+                border-bottom: 2px solid #dddddd;
                 padding: 10px 0px;
                 font-weight: bold;
                 font-size: 12px;
             }
             QPushButton:checked {
-                background-color: white;
+                background-color: #f6f6f6;
                 color: #005577;
-                border-bottom: 2px solid #005577;
+                border-bottom: 3px solid #005577;
             }
             QPushButton:hover:!checked {
-                color: #333333;
-                border-bottom: 2px solid #aaaaaa;
+                color: #222222;
+                border-bottom: 2px solid #bbbbbb;
             }
         """
         self.settings_btn.setStyleSheet(tab_style)
@@ -450,28 +451,70 @@ class UIBuilderMixin:
         toggle_layout.addWidget(self.lab_btn)
         main_layout.addLayout(toggle_layout)
 
-        # ---- content area ----
+        # ---- Content area ----
         content_area = QWidget()
         content_layout = QVBoxLayout(content_area)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
-        # -- settings page (all the original sidebar content) --
+        # ==========================================================
+        # PAGE 0: Main Settings Page (Identical to your screenshot)
+        # ==========================================================
         self.settings_page = QWidget()
         settings_layout = QVBoxLayout(self.settings_page)
-        settings_layout.setContentsMargins(8, 8, 8, 8)
+        settings_layout.setContentsMargins(10, 10, 10, 10)
+        settings_layout.setSpacing(6)
+
+        label_style = "font-size: 13px; color: #111111; font-weight: 500;"
+        button_style = """
+            QPushButton {
+                background-color: #ffffff;
+                color: #111111;
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                padding: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+                border-color: #999999;
+            }
+            QPushButton:pressed {
+                background-color: #e5e5e5;
+            }
+        """
 
         # Tool selection
-        settings_layout.addWidget(QLabel("Tool:"))
+        lbl_tool = QLabel("Tool:")
+        lbl_tool.setStyleSheet(label_style)
+        settings_layout.addWidget(lbl_tool)
+
+        self.segmentation_tools.setStyleSheet("""
+            QComboBox {
+                background-color: #ffffff;
+                color: #111111;
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+        """)
         settings_layout.addWidget(self.segmentation_tools)
 
         # Color selection
         color_button = QPushButton("Select Color")
+        color_button.setStyleSheet(button_style)
         color_button.clicked.connect(self.select_color)
         settings_layout.addWidget(color_button)
 
         # Brush size
-        settings_layout.addWidget(QLabel("Brush Size:"))
+        lbl_brush = QLabel("Brush Size:")
+        lbl_brush.setStyleSheet(label_style)
+        settings_layout.addWidget(lbl_brush)
+
         brush_size_slider = QSlider(Qt.Horizontal)
         brush_size_slider.setRange(1, 20)
         brush_size_slider.setValue(self.brush_thickness)
@@ -479,22 +522,27 @@ class UIBuilderMixin:
         settings_layout.addWidget(brush_size_slider)
 
         # Eraser size
-        settings_layout.addWidget(QLabel("Eraser Size:"))
+        lbl_eraser = QLabel("Eraser Size:")
+        lbl_eraser.setStyleSheet(label_style)
+        settings_layout.addWidget(lbl_eraser)
+
         eraser_size_slider = QSlider(Qt.Horizontal)
         eraser_size_slider.setRange(1, 20)
         eraser_size_slider.setValue(self.eraser_thickness)
         eraser_size_slider.valueChanged.connect(self.update_eraser_size)
         settings_layout.addWidget(eraser_size_slider)
 
-        # Separator
+        # Separator line
         hline = QFrame()
         hline.setFrameShape(QFrame.HLine)
         hline.setFrameShadow(QFrame.Sunken)
+        hline.setStyleSheet("color: #dddddd; margin: 4px 0;")
         settings_layout.addWidget(hline)
 
-        # Per-view settings
+        # Per-view settings (Axial, Sagittal, Coronal Accordions)
         for i, view_name in enumerate(["Axial", "Sagittal", "Coronal"]):
             view_settings_button = QPushButton(f"{view_name} Settings")
+            view_settings_button.setStyleSheet(button_style)
             view_settings_button.clicked.connect(
                 lambda checked, idx=i: self.toggle_view_settings(idx)
             )
@@ -502,31 +550,43 @@ class UIBuilderMixin:
 
             view_settings_widget = QWidget()
             view_settings_layout = QVBoxLayout(view_settings_widget)
-            view_settings_widget.setVisible(False)
+            view_settings_layout.setContentsMargins(6, 4, 6, 8)
+            view_settings_layout.setSpacing(5)
+            # Make Axial open by default as in screenshot
+            view_settings_widget.setVisible(i == 0)
             view_settings_widget.setObjectName(f"view_settings_widget_{i}")
 
-            # Slice row: label + dynamic count
+            # Slice row: label + count
             slice_header = QHBoxLayout()
-            slice_header.addWidget(QLabel("Slice:"))
+            lbl_slice = QLabel("Slice:")
+            lbl_slice.setStyleSheet(label_style)
+            slice_header.addWidget(lbl_slice)
+
             slice_count = QLabel("— / —")
             slice_count.setObjectName(f"slice_count_label_{i}")
-            slice_count.setStyleSheet("font-weight: bold;")
+            slice_count.setStyleSheet("font-weight: bold; font-size: 13px; color: #111111;")
             slice_header.addWidget(slice_count)
             slice_header.addStretch()
             view_settings_layout.addLayout(slice_header)
             view_settings_layout.addWidget(self.sliders[i])
 
             zoom_in_button = QPushButton("Zoom In")
+            zoom_in_button.setStyleSheet(button_style)
             zoom_in_button.clicked.connect(
                 lambda checked, idx=i: self.zoom_image(idx, 1.1, None)
             )
             view_settings_layout.addWidget(zoom_in_button)
 
             zoom_out_button = QPushButton("Zoom Out")
+            zoom_out_button.setStyleSheet(button_style)
             zoom_out_button.clicked.connect(
                 lambda checked, idx=i: self.zoom_image(idx, 0.9, None)
             )
             view_settings_layout.addWidget(zoom_out_button)
+
+            lbl_br = QLabel("Brightness:")
+            lbl_br.setStyleSheet(label_style)
+            view_settings_layout.addWidget(lbl_br)
 
             brightness_slider = QSlider(Qt.Horizontal)
             brightness_slider.setRange(-100, 100)
@@ -535,8 +595,11 @@ class UIBuilderMixin:
                 lambda value, idx=i: self.update_brightness_contrast(idx)
             )
             brightness_slider.setObjectName(f"brightness_slider_{i}")
-            view_settings_layout.addWidget(QLabel("Brightness:"))
             view_settings_layout.addWidget(brightness_slider)
+
+            lbl_ct = QLabel("Contrast:")
+            lbl_ct.setStyleSheet(label_style)
+            view_settings_layout.addWidget(lbl_ct)
 
             contrast_slider = QSlider(Qt.Horizontal)
             contrast_slider.setRange(1, 300)
@@ -545,15 +608,26 @@ class UIBuilderMixin:
                 lambda value, idx=i: self.update_brightness_contrast(idx)
             )
             contrast_slider.setObjectName(f"contrast_slider_{i}")
-            view_settings_layout.addWidget(QLabel("Contrast:"))
             view_settings_layout.addWidget(contrast_slider)
 
             rotate_layout = QHBoxLayout()
-            rotate_label  = QLabel("Rotate:")
+            rotate_label = QLabel("Rotate:")
+            rotate_label.setStyleSheet(label_style)
             rotate_layout.addWidget(rotate_label)
+
             rotate_spinbox = QSpinBox()
             rotate_spinbox.setRange(-180, 180)
             rotate_spinbox.setValue(180 if i > 0 else 0)
+            rotate_spinbox.setStyleSheet("""
+                QSpinBox {
+                    background-color: #ffffff;
+                    color: #111111;
+                    border: 1px solid #cccccc;
+                    border-radius: 3px;
+                    padding: 2px 4px;
+                    font-size: 12px;
+                }
+            """)
             rotate_spinbox.valueChanged.connect(
                 lambda value, idx=i: self.rotate_image(idx, value)
             )
@@ -562,6 +636,7 @@ class UIBuilderMixin:
             view_settings_layout.addLayout(rotate_layout)
 
             reset_button = QPushButton(f"Reset {view_name} View")
+            reset_button.setStyleSheet(button_style)
             reset_button.clicked.connect(
                 lambda checked, idx=i: self.reset_view(idx)
             )
@@ -572,25 +647,26 @@ class UIBuilderMixin:
         settings_layout.addWidget(self.notification_label)
         settings_layout.addStretch()
 
-        # -- segmentation page --
+        # ==========================================================
+        # PAGE 1: AI Segmentation Page
+        # ==========================================================
         self.segmentation_page = QWidget()
         seg_layout = QVBoxLayout(self.segmentation_page)
-        seg_layout.setContentsMargins(4, 2, 4, 2)
-        seg_layout.setSpacing(2)
-
-        # AI landmark navigation section (added by LandmarkNavMixin)
+        seg_layout.setContentsMargins(8, 8, 8, 8)
+        seg_layout.setSpacing(4)
         self.create_landmark_sidebar_section(seg_layout)
         seg_layout.addStretch(10)
 
-
-        # -- lab page (3D Lab controls) --
+        # ==========================================================
+        # PAGE 2: 3D Lab Page
+        # ==========================================================
         self.lab_page = QWidget()
         lab_page_layout = QVBoxLayout(self.lab_page)
         lab_page_layout.setContentsMargins(0, 0, 0, 0)
         lab_page_layout.setSpacing(0)
         self._build_lab_sidebar_page(lab_page_layout)
 
-        # -- stack pages --
+        # Add pages to container
         content_layout.addWidget(self.settings_page)
         content_layout.addWidget(self.segmentation_page)
         content_layout.addWidget(self.lab_page)
@@ -599,7 +675,7 @@ class UIBuilderMixin:
 
         main_layout.addWidget(content_area)
 
-        # -- connect toggle buttons --
+        # Connect top tab buttons
         self.settings_btn.clicked.connect(self.show_settings_page)
         self.ai_seg_btn.clicked.connect(self.show_segmentation_page)
         self.lab_btn.clicked.connect(self._enter_lab_mode)
@@ -614,13 +690,12 @@ class UIBuilderMixin:
             w.setVisible(not w.isVisible())
 
     def reset_view(self, index):
-        from PyQt5.QtWidgets import QSlider, QSpinBox
         self.image_labels[index].zoom_factor = 1.0
         self.brightness[index] = 0
-        self.contrast[index]   = 1
+        self.contrast[index] = 1
 
         brightness_slider = self.findChild(QSlider, f"brightness_slider_{index}")
-        contrast_slider   = self.findChild(QSlider, f"contrast_slider_{index}")
+        contrast_slider = self.findChild(QSlider, f"contrast_slider_{index}")
         if brightness_slider and contrast_slider:
             brightness_slider.setValue(0)
             contrast_slider.setValue(100)
@@ -694,7 +769,7 @@ class UIBuilderMixin:
                 reader.SetFileNames(dicom_names)
                 image = reader.Execute()
 
-                temp_dir       = tempfile.gettempdir()
+                temp_dir = tempfile.gettempdir()
                 temp_nifti_path = os.path.join(temp_dir, "temp_converted_image.nii.gz")
                 sitk.WriteImage(image, temp_nifti_path)
 
@@ -706,25 +781,24 @@ class UIBuilderMixin:
                 self.notification_label.setText(f"Error importing DICOM: {str(e)}")
                 self.notification_label.setStyleSheet("color: red; font-size: 14px;")
 
-
-
     def show_help(self):
-        from dialogs import show_help
+        try:
+            from .dialogs import show_help
+        except ImportError:
+            from dialogs import show_help
         show_help(self)
 
     def open_3d_lab(self):
-        """Open the standalone '3D Lab' window: a big 3D view with tools to
-        crop, clip, and peel away organ/tissue layers to see inside the
-        volume. Hands off the data already loaded in this window — does
-        not load anything new."""
         if self.image_array is None:
             self.notification_label.setText("Load an image before opening the 3D Lab.")
             self.notification_label.setStyleSheet("color: red; font-size: 14px;")
             return
 
-        from volume_explorer import VolumeExplorerWindow
+        try:
+            from .volume_explorer import VolumeExplorerWindow
+        except ImportError:
+            from volume_explorer import VolumeExplorerWindow
 
-        # Reuse a single instance across opens rather than piling up windows.
         if getattr(self, "_volume_explorer", None) is not None:
             try:
                 self._volume_explorer.close()
@@ -741,16 +815,7 @@ class UIBuilderMixin:
             parent=self,
         )
 
-        # If organs were detected via AI Segmentation, give the 3D Lab their
-        # real display names instead of generic "Region N" labels. We rebuild
-        # the label->name mapping the same way LandmarkDetector assigned
-        # label values (insertion order over the organ_map it was given),
-        # using the centroid lookup already cached in landmark_positions.
         if self.label_colormap and self.landmark_positions:
-            # No direct reverse-lookup (label_val -> name) is stored on the
-            # viewer, so we rebuild it the same way LandmarkDetector assigned
-            # label values originally: insertion order over landmark_positions
-            # corresponds to label_idx + 1.
             names_by_label = {}
             names = list(self.landmark_positions.keys())
             for i, name in enumerate(names):
@@ -763,7 +828,5 @@ class UIBuilderMixin:
         self._volume_explorer.raise_()
         self._volume_explorer.activateWindow()
 
-
     def get_active_view_index(self):
-        """Returns the index of the active view. Placeholder – always returns 0."""
         return 0

@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QGridLayout, QSizePolicy,
 )
 
-from landmark_detector import (
+from .landmark_detector import (
     get_sections,
     get_section_description,
     get_organs_for_section,

@@ -33,7 +33,6 @@ class ImageProcessingMixin:
                 self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
                 self.spacing = image.GetSpacing()
                 self.caliper_lines = [None, None, None]
-                self.is_abdomen = "abdomen" in file_name.lower()
                 self._reset_motion_restoration()
 
                 self.update_image_slices()
@@ -62,7 +61,6 @@ class ImageProcessingMixin:
                 self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
                 self.spacing = image.GetSpacing()
                 self.caliper_lines = [None, None, None]
-                self.is_abdomen = "abdomen" in nifti_path.lower()
                 self._reset_motion_restoration()
                 self.update_image_slices()
                 self.render_3d_volume()

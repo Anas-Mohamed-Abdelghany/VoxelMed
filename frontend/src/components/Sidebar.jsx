@@ -66,7 +66,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <aside className={`
-      w-[310px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs
+      w-[100vw] max-w-[320px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs
       fixed md:relative inset-y-0 left-0 z-40
       transition-transform duration-200 ease-in-out
       ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}

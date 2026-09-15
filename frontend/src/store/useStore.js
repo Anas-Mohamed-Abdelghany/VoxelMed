@@ -32,6 +32,9 @@ const useStore = create((set, get) => ({
   error: null,
   sidebarOpen: false,
 
+  // AI Report
+  aiMessages: [],
+
   // 3D Lab Controls
   lab3d: {
     boxCrop: false,
@@ -172,6 +175,7 @@ const useStore = create((set, get) => ({
   setError: (error) => set({ error }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  setAiMessages: (msgs) => set({ aiMessages: msgs }),
 }));
 
 export default useStore;

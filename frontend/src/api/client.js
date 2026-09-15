@@ -67,3 +67,58 @@ export async function toggleMotionRestoration() {
 export async function getVolumeData() {
   return apiFetch('/volume/data');
 }
+
+export async function getMontageAsBase64(view, windowCenter, windowWidth) {
+  const params = new URLSearchParams({
+    window_center: windowCenter,
+    window_width: windowWidth,
+  });
+  return apiFetch(`/slices/montage/${view}/base64?${params}`);
+}
+
+export async function askAIReportStream(messages, model = 'openrouter/free', onChunk, onDone, onError) {
+  try {
+    const res = await fetch(`${API_BASE}/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, model }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      onError(err.detail || 'Request failed');
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            onDone();
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) {
+              onError(parsed.error);
+              return;
+            }
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) onChunk(content);
+          } catch {}
+        }
+      }
+    }
+    onDone();
+  } catch (err) {
+    onError(err.message);
+  }
+}

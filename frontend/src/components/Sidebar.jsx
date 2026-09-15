@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import useStore from '../store/useStore';
 import AISegmentation from './AISegmentation';
 import LandmarkNav from './LandmarkNav';
+import AIReport from './AIReport';
 
 const TISSUE_PRESETS = [
   { id: 'all', label: 'All tissue' },
@@ -65,7 +66,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <aside className={`
-      w-[265px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs
+      w-[310px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs
       fixed md:relative inset-y-0 left-0 z-40
       transition-transform duration-200 ease-in-out
       ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
@@ -87,7 +88,8 @@ export default function Sidebar({ isOpen, onClose }) {
       <div className="flex bg-med-dark/50 border-b border-med-border">
         {[
           { id: 'Main', label: 'Main' },
-          { id: 'AI Segmentation', label: 'AI Segmentation' },
+          { id: 'AI Segmentation', label: 'Segmentation' },
+          { id: 'AI Report', label: 'Report' },
           { id: '3D Lab', label: '3D Lab' },
         ].map((tab) => {
           const isActive = activeTab === tab.id;
@@ -108,7 +110,9 @@ export default function Sidebar({ isOpen, onClose }) {
       </div>
 
       {/* 2. Scrollable Body */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className={`flex-1 min-h-0 ${
+        activeTab === 'AI Report' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto p-3 space-y-3'
+      }`}>
         {activeTab === 'Main' && (
           <>
             {/* Tool Selection Dropdown */}
@@ -307,6 +311,13 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="space-y-3">
             <AISegmentation />
             <LandmarkNav />
+          </div>
+        )}
+
+        {/* AI Report Tab */}
+        {activeTab === 'AI Report' && (
+          <div className="flex-1 min-h-0">
+            <AIReport />
           </div>
         )}
 

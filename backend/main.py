@@ -9,6 +9,7 @@ import subprocess
 from typing import Optional, List
 
 import numpy as np
+import httpx
 import SimpleITK as sitk
 import nibabel as nib
 import cv2
@@ -18,6 +19,9 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="VoxelMed API")
 
@@ -336,6 +340,64 @@ async def get_slice_base64(
     normalized = normalize_slice(slice_data.astype(np.float64), window_center, window_width)
     return {"image": arr_to_png_base64(normalized), "slice_index": slice_index, "max_slice": max_idx}
 
+@app.get("/api/slices/montage/{view}/base64")
+async def get_montage_base64(
+    view: str,
+    window_center: float = Query(default=None),
+    window_width: float = Query(default=None),
+    session_id: str = "default",
+):
+    vol = get_session(session_id)
+    arr = vol["array"]
+    axis = 0 if view == "axial" else 2 if view == "sagittal" else 1
+    num_slices = arr.shape[axis]
+
+    # Pick evenly-spaced slices, cap at 20 for high-quality tiles
+    max_tiles = 20
+    if num_slices <= max_tiles:
+        indices = list(range(num_slices))
+    else:
+        indices = [int(i * (num_slices - 1) / (max_tiles - 1)) for i in range(max_tiles)]
+
+    # Build slice images at full resolution
+    slices = []
+    for idx in indices:
+        if view == "axial":
+            slice_data = arr[idx, :, :]
+        elif view == "sagittal":
+            slice_data = arr[:, :, idx]
+        else:
+            slice_data = arr[:, idx, :]
+        normalized = normalize_slice(slice_data.astype(np.float64), window_center, window_width)
+        slices.append(Image.fromarray(normalized))
+
+    # Upscale each tile to 512px on longest side for AI clarity
+    target_size = 512
+    upscaled = []
+    for img in slices:
+        w, h = img.size
+        scale = target_size / max(w, h)
+        if scale > 1:
+            new_w, new_h = int(w * scale), int(h * scale)
+            img = img.resize((new_w, new_h), Image.NEAREST)
+        upscaled.append(img)
+
+    # Grid layout
+    n = len(upscaled)
+    cols = int(np.ceil(np.sqrt(n)))
+    rows = int(np.ceil(n / cols))
+    tile_w, tile_h = upscaled[0].size
+
+    montage = Image.new('L', (cols * tile_w, rows * tile_h), 0)
+    for i, img in enumerate(upscaled):
+        r, c = divmod(i, cols)
+        montage.paste(img, (c * tile_w, r * tile_h))
+
+    buf = io.BytesIO()
+    montage.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return {"image": b64, "view": view, "total_slices": num_slices, "montage_slices": n}
+
 @app.get("/api/segmentation/{view}/{slice_index}/base64")
 async def get_segmentation_slice_base64(view: str, slice_index: int, session_id: str = "default"):
     vol = get_session(session_id)
@@ -582,6 +644,45 @@ async def toggle_motion_restoration(session_id: str = "default"):
         vol["array"] = restored
         vol["is_restored"] = True
         return {"status": "ok", "is_restored": True, "message": "Motion artifact restoration active"}
+
+class AIReportRequest(BaseModel):
+    messages: list
+    model: str = "openrouter/free"
+
+@app.post("/api/ai/report")
+async def ai_report(req: AIReportRequest):
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not set in .env")
+
+    async def stream_openrouter():
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "http://localhost:3000",
+                    "X-Title": "VoxelMed",
+                },
+                json={
+                    "model": req.model,
+                    "messages": req.messages,
+                    "stream": True,
+                },
+            ) as resp:
+                if resp.status_code != 200:
+                    body = await resp.aread()
+                    yield f"data: {json.dumps({'error': f'OpenRouter error {resp.status_code}: {body.decode()}'})}\n\n"
+                    return
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        yield line + "\n\n"
+                    elif line.strip() == "":
+                        continue
+
+    return StreamingResponse(stream_openrouter(), media_type="text/event-stream")
 
 if __name__ == "__main__":
     import uvicorn

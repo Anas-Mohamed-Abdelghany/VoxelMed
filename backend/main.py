@@ -32,99 +32,98 @@ app.add_middleware(
 volumes = {}
 
 COLORMAP = [
-    # Bones (Skeleton) - distinct warm tones
-    (210, 190, 160),  # Skull - tan
-    (195, 175, 145),  # Clavicula - sandy
-    (180, 160, 130),  # Scapula - khaki
-    (200, 185, 155),  # Humerus - wheat
-    (190, 170, 140),  # Vertebrae C - camel
-    (215, 195, 165),  # Sternum - pale gold
-    (185, 165, 135),  # Rib 1-12 - sand
-    (205, 185, 150),  # Vertebrae T - golden tan
-    (200, 180, 148),  # Vertebrae L - warm sand
-    (170, 155, 125),  # Costal Cartilages - olive tan
-    (175, 158, 128),  # Ulna - dusty gold
-    (188, 168, 138),  # Radius - sandy brown
-    (165, 148, 120),  # Intervertebral Discs - dark tan
-    (210, 192, 158),  # Hip - light gold
-    (195, 178, 148),  # Sacrum - warm khaki
-    (172, 155, 125),  # Carpal - muted gold
-    (182, 165, 135),  # Metacarpal - tan
-    (178, 160, 130),  # Phalanges Hand - sandy
-    (215, 198, 162),  # Femur - bright tan
-    (198, 180, 150),  # Patella - pale gold
-    (185, 168, 138),  # Fibula - camel
-    (205, 188, 155),  # Tibia - warm wheat
-    (170, 155, 125),  # Tarsal - dark tan
-    (180, 162, 132),  # Metatarsal - sandy
-    (175, 158, 128),  # Phalanges Foot - tan
+    # --- 1. SKELETON (25 items) - Bright Gold / Titanium / Platinum tones ---
+    (255, 215, 0),    # 0: Skull - Pure Gold
+    (240, 200, 90),   # 1: Clavicula - Light Gold
+    (220, 180, 70),   # 2: Scapula - Amber Gold
+    (245, 205, 100),  # 3: Humerus - Bright Amber
+    (230, 190, 80),   # 4: Vertebrae C - Warm Gold
+    (255, 230, 120),  # 5: Sternum - Bright Yellow-Gold
+    (210, 170, 60),   # 6: Rib 1-12 - Bronze Gold
+    (235, 195, 85),   # 7: Vertebrae T - Golden Amber
+    (225, 185, 75),   # 8: Vertebrae L - Deep Gold
+    (200, 160, 50),   # 9: Costal Cartilages - Dark Bronze
+    (190, 150, 45),   # 10: Ulna - Metallic Bronze
+    (215, 175, 65),   # 11: Radius - Brass
+    (170, 130, 40),   # 12: Intervertebral Discs - Deep Brass
+    (255, 220, 110),  # 13: Hip - Bright Gold
+    (210, 165, 55),   # 14: Sacrum - Antique Gold
+    (180, 140, 40),   # 15: Carpal - Dark Brass
+    (195, 155, 45),   # 16: Metacarpal - Gold
+    (185, 145, 42),   # 17: Phalanges Hand - Antique Brass
+    (255, 235, 130),  # 18: Femur - Bright Platinum Gold
+    (220, 180, 80),   # 19: Patella - Light Bronze
+    (200, 155, 50),   # 20: Fibula - Bronze
+    (240, 200, 95),   # 21: Tibia - Bright Gold
+    (175, 135, 38),   # 22: Tarsal - Dark Bronze
+    (190, 150, 44),   # 23: Metatarsal - Brass
+    (182, 142, 41),   # 24: Phalanges Foot - Deep Bronze
 
-    # Gastrointestinal - warm earth tones
-    (180, 120, 90),   # Esophagus - terracotta
-    (160, 130, 100),  # Stomach - warm brown
-    (170, 140, 110),  # Duodenum - tan
-    (150, 120, 95),   # Small Bowel - sienna
-    (140, 110, 85),   # Colon - burnt umber
-    (120, 150, 180),  # Urinary Bladder - muted blue
+    # --- 2. GASTROINTESTINAL (6 items) - Distinct Teals & Emerald Greens ---
+    (0, 206, 209),    # 25: Esophagus - Dark Turquoise
+    (60, 179, 113),   # 26: Stomach - Medium Sea Green
+    (46, 139, 87),    # 27: Duodenum - Sea Green
+    (32, 178, 170),   # 28: Small Bowel - Light Sea Green
+    (72, 209, 204),   # 29: Colon - Pale Turquoise
+    (70, 130, 180),   # 30: Urinary Bladder - Steel Blue
 
-    # Cardiovascular - red/blue/pink tones
-    (180, 50, 50),    # Common Carotid Artery - deep red
-    (60, 120, 180),   # Subclavian Artery - steel blue
-    (150, 70, 70),    # Brachiocephalic Trunk - dark red
-    (50, 100, 160),   # Superior Vena Cava - navy blue
-    (200, 40, 40),    # Aorta - bright red
-    (180, 80, 100),   # Right Atrium - rose
-    (170, 60, 80),    # Right Ventricle - deep rose
-    (140, 100, 60),   # Portal Vein - bronze
-    (160, 50, 50),    # Iliac Artery - crimson
-    (50, 90, 150),    # Iliac Vein - slate blue
-    (70, 110, 170),   # Brachiocephalic Vein - medium blue
-    (100, 60, 120),   # Pulmonary Artery - plum
-    (190, 90, 110),   # Atrial Appendage - dusty rose
-    (180, 70, 90),    # Left Ventricle - coral red
-    (160, 50, 60),    # Myocardium - heart red
-    (170, 80, 100),   # Left Atrium - mauve
-    (80, 100, 140),   # Splenic Vein - steel blue
-    (45, 85, 145),    # Inferior Vena Cava - dark blue
+    # --- 3. CARDIOVASCULAR (18 items) - Vivid Reds (Arteries) & Royal Blues (Veins) ---
+    (255, 0, 0),      # 31: Common Carotid Artery - Pure Vivid Red
+    (0, 128, 255),    # 32: Subclavian Artery - Bright Blue
+    (220, 20, 60),    # 33: Brachiocephalic Trunk - Crimson Red
+    (0, 0, 205),      # 34: Superior Vena Cava - Medium Blue
+    (255, 69, 0),     # 35: Aorta - Orange-Red (High Contrast!)
+    (255, 105, 180),  # 36: Right Atrium - Hot Pink
+    (219, 112, 147),  # 37: Right Ventricle - Pale Violet Red
+    (218, 165, 32),   # 38: Portal Vein - Goldenrod (Distinct from GI)
+    (238, 44, 44),    # 39: Iliac Artery - Firebrick Red
+    (30, 144, 255),   # 40: Iliac Vein - Dodger Blue
+    (0, 191, 255),    # 41: Brachiocephalic Vein - Deep Sky Blue
+    (138, 43, 226),   # 42: Pulmonary Artery - Blue Violet
+    (255, 20, 147),   # 43: Atrial Appendage - Deep Pink
+    (255, 77, 77),    # 44: Left Ventricle - Bright Red
+    (178, 34, 34),    # 45: Myocardium - Firebrick
+    (255, 182, 193),  # 46: Left Atrium - Light Pink
+    (100, 149, 237),  # 47: Splenic Vein - Cornflower Blue
+    (0, 0, 139),      # 48: Inferior Vena Cava - Dark Blue
 
-    # Other organs - varied distinct colors
-    (140, 100, 160),  # Brain - lavender
-    (120, 140, 160),  # Spinal Cord - steel
-    (160, 180, 140),  # Thyroid Gland - sage green
-    (180, 160, 140),  # Trachea - khaki
-    (100, 160, 200),  # Lung Upper Lobe - sky blue
-    (90, 150, 190),   # Lung Middle Lobe - light blue
-    (80, 140, 180),   # Lung Lower Lobe - cerulean
-    (180, 140, 80),   # Adrenal Gland - golden brown
-    (160, 60, 80),    # Spleen - burgundy
-    (120, 100, 60),   # Liver - olive brown
-    (100, 140, 80),   # Gallbladder - moss green
-    (150, 120, 100),  # Kidney - warm tan
-    (180, 160, 100),  # Pancreas - ochre
-    (130, 110, 120),  # Prostate - mauve gray
+    # --- 4. OTHER ORGANS (14 items) - Maximum Color Separation ---
+    (147, 112, 219),  # 49: Brain - Medium Purple
+    (0, 255, 255),    # 50: Spinal Cord - Cyan / Aqua
+    (50, 205, 50),    # 51: Thyroid Gland - Lime Green
+    (245, 222, 179),  # 52: Trachea - Wheat
+    (135, 206, 235),  # 53: Lung Upper Lobe - Sky Blue
+    (0, 150, 255),    # 54: Lung Middle Lobe - Vivid Sky Blue
+    (0, 102, 204),    # 55: Lung Lower Lobe - Cerulean Blue
+    (255, 165, 0),    # 56: Adrenal Gland - Pure Orange
+    (220, 20, 60),    # 57: Spleen - Crimson (Distinct Red)
+    (46, 125, 50),    # 58: Liver - Deep Emerald Green (High Contrast!)
+    (124, 252, 0),    # 59: Gallbladder - Lawn Green
+    (255, 255, 0),    # 60: Kidney - Bright Pure Yellow (Extremely distinct!)
+    (255, 140, 0),    # 61: Pancreas - Dark Orange
+    (186, 85, 211),   # 62: Prostate - Orchid
 
-    # Muscles - red/pink/coral tones
-    (180, 80, 80),    # Supraspinatus - brick red
-    (170, 70, 70),    # Infraspinatus - crimson
-    (190, 90, 90),    # Subscapularis - salmon
-    (160, 60, 60),    # Deltoid - deep coral
-    (175, 75, 75),    # Pectoralis Minor - rose red
-    (185, 85, 85),    # Coracobrachial - pink red
-    (165, 65, 65),    # Teres Major - dark salmon
-    (155, 55, 55),    # Serratus Anterior - maroon
-    (145, 50, 50),    # Autochthon - deep crimson
-    (175, 80, 80),    # Triceps Brachii - warm red
-    (165, 70, 70),    # Iliopsoas - dusty red
-    (180, 85, 85),    # Gluteus Minimus - light coral
-    (170, 75, 75),    # Gluteus Medius - medium red
-    (160, 65, 65),    # Gluteus Maximus - dark coral
-    (155, 60, 60),    # Thigh Medial - crimson
-    (185, 90, 90),    # Sartorius - pale red
-    (175, 80, 80),    # Quadriceps Femoris - coral
-    (150, 55, 55),    # Thigh Posterior - deep red
-    (165, 70, 70),    # Trapezius - warm crimson
+    # --- 5. MUSCLES (18 items) - Rich Brick Reds / Maroons ---
+    (165, 42, 42),    # 63: Supraspinatus - Brown / Brick Red
+    (178, 34, 34),    # 64: Infraspinatus - Firebrick
+    (150, 40, 40),    # 65: Subscapularis - Dark Red
+    (139, 0, 0),      # 66: Deltoid - Dark Red
+    (160, 50, 50),    # 67: Pectoralis Minor - Brick
+    (170, 60, 60),    # 68: Coracobrachial - Reddish Brown
+    (145, 35, 35),    # 69: Teres Major - Deep Red
+    (130, 30, 30),    # 70: Serratus Anterior - Maroon
+    (120, 25, 25),    # 71: Autochthon - Dark Maroon
+    (165, 45, 45),    # 72: Triceps Brachii - Brick Red
+    (155, 40, 40),    # 73: Iliopsoas - Dark Red
+    (175, 55, 55),    # 74: Gluteus Minimus - Coral Red
+    (165, 45, 45),    # 75: Gluteus Medius - Brick
+    (150, 35, 35),    # 76: Gluteus Maximus - Maroon
+    (140, 30, 30),    # 77: Thigh Medial - Dark Red
+    (180, 70, 70),    # 78: Sartorius - Light Brick Red
+    (160, 45, 45),    # 79: Quadriceps Femoris - Brick
+    (135, 25, 25),    # 80: Thigh Posterior - Deep Maroon
+    (170, 50, 50),    # 81: Trapezius - Red
 ]
-
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "segmentation_config.json")
 
 # ----------------------------------------------------------------------

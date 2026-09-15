@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import { getVolumeData } from '../api/client';
@@ -137,26 +137,21 @@ const fragmentShader = `
           vec2 lutUV = vec2((label + 0.5) / 256.0, 0.5);
           vec4 labelColor = texture(u_lut, lutUV);
 
-          // Organ isolation: apply per-label opacity
-          float opacityMult = 1.0;
-          if (u_selectedLabel > 0.5) {
-            // A specific organ is selected
-            if (abs(label - u_selectedLabel) < 0.5) {
-              opacityMult = u_organOpacity;
-            } else {
-              opacityMult = u_backgroundOpacity;
-            }
+          // Determine opacity: selected organ uses organOpacity, rest uses backgroundOpacity
+          float opacityMult = u_backgroundOpacity;
+          if (u_selectedLabel < 0.5) {
+            // No organ selected — all organs at full opacity
+            opacityMult = 1.0;
+          } else if (abs(label - u_selectedLabel) < 0.5) {
+            opacityMult = u_organOpacity;
           }
 
-          // Semi-transparent skin: modulate alpha by CT intensity
-          float intensityFactor = clamp((val - u_threshold) / 0.3, 0.0, 1.0);
-
-          if (labelColor.a > 0.01 && opacityMult > 0.01 && intensityFactor > 0.01) {
+          if (labelColor.a > 0.01 && opacityMult > 0.01) {
             vec3 N = computeNormal(uvw);
             float diff = max(dot(N, lightDir), 0.25);
             vec3 shaded = labelColor.rgb * (diff + 0.25);
 
-            float alpha = labelColor.a * opacityMult * intensityFactor * u_density * stepLength;
+            float alpha = labelColor.a * opacityMult * u_density * stepLength;
             accum.rgb += (1.0 - accum.a) * shaded * alpha;
             accum.a   += (1.0 - accum.a) * alpha;
           }
@@ -164,14 +159,18 @@ const fragmentShader = `
         }
       }
 
-      // --- Intensity-based fallback ---
+      // --- Intensity-based fallback (unlabeled tissue) ---
       if (val > u_threshold) {
+        float fallbackAlpha = 1.0;
+        if (u_selectedLabel > 0.5) {
+          fallbackAlpha = u_backgroundOpacity;
+        }
         vec4 sampleCol = getTissueColor(val);
-        if (sampleCol.a > 0.01) {
+        if (sampleCol.a > 0.01 && fallbackAlpha > 0.01) {
           vec3 N = computeNormal(uvw);
           float diff = max(dot(N, lightDir), 0.25);
           vec3 shaded = sampleCol.rgb * (diff + 0.25);
-          float alpha = sampleCol.a * u_density * stepLength;
+          float alpha = sampleCol.a * fallbackAlpha * u_density * stepLength;
           accum.rgb += (1.0 - accum.a) * shaded * alpha;
           accum.a   += (1.0 - accum.a) * alpha;
         }
@@ -227,22 +226,22 @@ function VolumeMesh({ volumeData, dims, spacing, maskData, labelColormap, organT
     data[0] = data[1] = data[2] = 0; data[3] = 0;
 
     const fallbackColors = [
-      [210,190,160],[195,175,145],[180,160,130],[200,185,155],[190,170,140],
-      [215,195,165],[185,165,135],[205,185,150],[200,180,148],[170,155,125],
+      [230,180,120],[210,160,100],[190,150,90],[220,170,110],[200,155,95],
+      [235,185,125],[195,145,85],[215,165,105],[205,158,98],[180,140,80],
       [180,120,90],[160,130,100],[170,140,110],[150,120,95],[140,110,85],[120,150,180],
-      [180,50,50],[60,120,180],[150,70,70],[50,100,160],[200,40,40],
-      [180,80,100],[170,60,80],[140,100,60],[160,50,50],[50,90,150],
-      [70,110,170],[100,60,120],[190,90,110],[180,70,90],[160,50,60],
-      [170,80,100],[80,100,140],[45,85,145],
-      [140,100,160],[120,140,160],[160,180,140],[180,160,140],
-      [100,160,200],[90,150,190],[80,140,180],
-      [180,140,80],[160,60,80],[120,100,60],[100,140,80],
-      [150,120,100],[180,160,100],[130,110,120],
-      [180,80,80],[170,70,70],[190,90,90],[160,60,60],
-      [175,75,75],[185,85,85],[165,65,65],[155,55,55],
-      [145,50,50],[175,80,80],[165,70,70],[180,85,85],
-      [170,75,75],[160,65,65],[155,60,60],[185,90,90],
-      [175,80,80],[150,55,55],[165,70,70]
+      [220,40,40],[50,130,200],[180,50,50],[40,90,170],[240,30,30],
+      [200,70,90],[190,50,70],[160,110,50],[200,40,40],[40,80,160],
+      [60,120,190],[120,50,140],[210,80,100],[200,60,80],[190,40,50],
+      [185,70,90],[70,110,160],[30,80,160],
+      [160,80,180],[100,150,170],[140,200,120],[200,170,130],
+      [80,170,220],[60,160,210],[40,150,200],
+      [200,150,60],[180,40,70],[140,110,40],[80,160,60],
+      [170,130,80],[200,170,70],[150,100,130],
+      [200,60,60],[190,50,50],[210,70,70],[180,40,40],
+      [195,55,55],[205,65,65],[185,45,45],[175,35,35],
+      [165,30,30],[195,55,55],[185,45,45],[205,65,65],
+      [195,55,55],[185,45,45],[175,35,35],[210,70,70],
+      [200,60,60],[170,30,30],[190,50,50]
     ];
 
     for (let i = 1; i <= 255; i++) {
@@ -320,8 +319,8 @@ function VolumeMesh({ volumeData, dims, spacing, maskData, labelColormap, organT
     }
   }, [maskTexture, lutTexture, uniforms]);
 
-  // Sync lab3d controls to uniforms
-  useEffect(() => {
+  // Sync lab3d controls to uniforms via useFrame (detects in-place .value mutations)
+  useFrame(() => {
     uniforms.u_clipEnabled.value.set(
       lab3d.clipX.enabled ? 1.0 : 0.0,
       lab3d.clipY.enabled ? 1.0 : 0.0,
@@ -340,13 +339,12 @@ function VolumeMesh({ volumeData, dims, spacing, maskData, labelColormap, organT
     uniforms.u_boxCrop.value = lab3d.boxCrop ? 1.0 : 0.0;
     uniforms.u_threshold.value = lab3d.tissueThreshold;
 
-    // Organ isolation: map selected organ name to label ID
     const selectedLabel = (lab3d.selectedOrgan && organToLabel && organToLabel[lab3d.selectedOrgan])
       ? organToLabel[lab3d.selectedOrgan] : 0;
     uniforms.u_selectedLabel.value = selectedLabel;
     uniforms.u_organOpacity.value = lab3d.organOpacity;
     uniforms.u_backgroundOpacity.value = lab3d.backgroundOpacity;
-  }, [lab3d, organToLabel, uniforms]);
+  });
 
   return (
     <mesh ref={meshRef}>

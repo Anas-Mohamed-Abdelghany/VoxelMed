@@ -12,7 +12,7 @@ const TISSUE_PRESETS = [
 
 const TISSUE_THRESHOLDS = { all: 0.12, skin: 0.05, soft: 0.22, bone: 0.70 };
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('Main');
   const [openAccordion, setOpenAccordion] = useState({
     axial: true,
@@ -64,7 +64,25 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-[265px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs">
+    <aside className={`
+      w-[265px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs
+      fixed md:relative inset-y-0 left-0 z-40
+      transition-transform duration-200 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+    `}>
+      {/* Mobile close button */}
+      <div className="md:hidden flex items-center justify-between px-3 py-2 bg-med-dark/50 border-b border-med-border">
+        <span className="text-xs font-bold text-med-text-dim uppercase tracking-wider">Menu</span>
+        <button
+          onClick={onClose}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-med-accent/20 text-med-text-dim hover:text-med-accent transition-colors"
+          title="Close sidebar"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
       {/* 1. Tabs Header: Main | AI Segmentation | 3D Lab */}
       <div className="flex bg-med-dark/50 border-b border-med-border">
         {[

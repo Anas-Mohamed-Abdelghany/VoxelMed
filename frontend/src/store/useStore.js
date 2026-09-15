@@ -30,6 +30,7 @@ const useStore = create((set, get) => ({
   measurements: [],
   loading: false,
   error: null,
+  sidebarOpen: false,
 
   // 3D Lab Controls
   lab3d: {
@@ -169,6 +170,8 @@ const useStore = create((set, get) => ({
   clearMeasurements: () => set({ measurements: [] }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 }));
 
 export default useStore;

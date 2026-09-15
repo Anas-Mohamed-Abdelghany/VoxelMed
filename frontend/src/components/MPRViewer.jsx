@@ -451,7 +451,7 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
   return (
     <div
       ref={containerRef}
-      className={`relative bg-black flex flex-col overflow-hidden border border-med-border rounded ${
+      className={`relative bg-black flex flex-col overflow-hidden border border-med-border rounded min-h-[280px] md:min-h-0 ${
         maximizedView === view ? 'flex-1' : ''
       }`}
       onContextMenu={(e) => e.preventDefault()}
@@ -549,7 +549,9 @@ export default function MPRViewer() {
 
   return (
     <div className={`w-full h-full p-1.5 bg-med-dark gap-1.5 min-h-0 ${
-      maximizedView ? 'flex' : 'grid grid-cols-2 grid-rows-2'
+      maximizedView
+        ? 'flex'
+        : 'flex flex-col overflow-y-auto md:overflow-hidden md:grid md:grid-cols-2 md:grid-rows-2'
     }`}>
       {(!maximizedView || maximizedView === 'axial') && (
         <SlicePanel
@@ -581,7 +583,7 @@ export default function MPRViewer() {
 
       {/* 4th Quadrant: 3D Volume Engine */}
       {(!maximizedView || maximizedView === '3d') && (
-      <div className={`relative bg-black border border-med-border rounded flex flex-col overflow-hidden ${
+      <div className={`relative bg-black border border-med-border rounded flex flex-col overflow-hidden min-h-[280px] md:min-h-0 ${
         maximizedView === '3d' ? 'flex-1' : ''
       }`}>
         <div className="flex items-center justify-between px-2 py-1 bg-med-panel/90 border-b border-med-border z-10 select-none">

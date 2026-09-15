@@ -3,11 +3,24 @@ import useStore from './store/useStore';
 import Toolbar from './components/Toolbar';
 import Sidebar from './components/Sidebar';
 import MPRViewer from './components/MPRViewer';
-import VolumeRenderer from './components/VolumeRenderer';
 import LandingScreen from './components/LandingScreen';
 
 export default function App() {
-  const { volumeLoaded, loading, error, setError } = useStore();
+  const { volumeLoaded, loading, error, setError, sidebarOpen, setSidebarOpen } = useStore();
+
+  // Auto-open sidebar on desktop, close on mobile
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handle = (e) => setSidebarOpen(e.matches);
+    handle(mq);
+    mq.addEventListener('change', handle);
+    return () => mq.removeEventListener('change', handle);
+  }, [setSidebarOpen]);
+
+  // Close sidebar when navigating to landing screen
+  useEffect(() => {
+    if (!volumeLoaded) setSidebarOpen(false);
+  }, [volumeLoaded, setSidebarOpen]);
 
   return (
     <div className="w-full h-full flex flex-col bg-med-dark text-med-text">
@@ -28,9 +41,16 @@ export default function App() {
       {volumeLoaded ? (
         <>
           <Toolbar />
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar />
-            <div className="flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden relative">
+            {/* Mobile backdrop scrim */}
+            {sidebarOpen && (
+              <div
+                className="md:hidden fixed inset-0 z-30 bg-black/50"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
+            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <div className="flex-1 overflow-hidden min-w-0">
               <MPRViewer />
             </div>
           </div>

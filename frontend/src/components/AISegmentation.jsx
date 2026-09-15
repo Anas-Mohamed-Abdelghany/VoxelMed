@@ -19,9 +19,10 @@ const SECTOR_ORGANS = {
 };
 
 export default function AISegmentation() {
-  const { setSegmentationActive, setLandmarkPositions, setLoading, setError, selectedOrgans, toggleOrgan } = useStore();
+  const { setSegmentationActive, setLandmarkPositions, setLoading, setError, selectedOrgans, toggleOrgan, selectAllOrgans, deselectAllOrgans } = useStore();
   const [expandedSector, setExpandedSector] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   const handleRun = async () => {
     setIsRunning(true);
@@ -42,6 +43,26 @@ export default function AISegmentation() {
   return (
     <div className="sidebar-section">
       <h3>AI Segmentation</h3>
+      <button
+        onClick={() => setShowMap(true)}
+        className="w-full mt-2 py-1 text-[11px] font-medium rounded border border-med-border hover:border-med-accent/50 text-med-text-dim hover:text-med-text transition-colors"
+      >
+        Map
+      </button>
+      <div className="flex gap-2 mt-2">
+        <button
+          onClick={selectAllOrgans}
+          className="flex-1 py-1 text-[11px] font-medium rounded border border-med-border hover:border-med-accent/50 text-med-text-dim hover:text-med-text transition-colors"
+        >
+          Select All
+        </button>
+        <button
+          onClick={deselectAllOrgans}
+          className="flex-1 py-1 text-[11px] font-medium rounded border border-med-border hover:border-med-accent/50 text-med-text-dim hover:text-med-text transition-colors"
+        >
+          Deselect All
+        </button>
+      </div>
       <div className="space-y-2 mt-2">
         {Object.entries(SECTOR_ORGANS).map(([sector, organs]) => (
           <div key={sector}>
@@ -77,6 +98,25 @@ export default function AISegmentation() {
       >
         {isRunning ? 'Running...' : `Run Segmentation (${selectedOrgans.length} organs)`}
       </button>
+      {showMap && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={() => setShowMap(false)}
+        >
+          <div
+            className="relative bg-med-bg rounded-lg border border-med-border overflow-hidden max-w-[90vw] max-h-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowMap(false)}
+              className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center rounded bg-black/50 text-white text-sm hover:bg-black/70"
+            >
+              ×
+            </button>
+            <img src="/map.png" alt="Organ Map" className="block max-w-[85vw] max-h-[85vh] object-contain" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

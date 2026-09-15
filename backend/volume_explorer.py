@@ -109,6 +109,7 @@ class SegWorker(QThread):
             env["OMP_NUM_THREADS"] = "1"
             result = subprocess.run(
                 cmd, capture_output=True, text=True, env=env,
+                timeout=600,
                 creationflags=subprocess.CREATE_NO_WINDOW if self._os.name == "nt" else 0,
             )
             if result.returncode != 0:
@@ -128,6 +129,7 @@ class SegWorker(QThread):
                 if not self._os.path.isfile(mp):
                     continue
                 m = (nib.load(mp).get_fdata() > 0.5).astype(np.uint8)
+                m = np.transpose(m, (2, 1, 0))
                 if needs_pad:
                     dz, dy, dx = orig_shape
                     m = m[:dz, :dy, :dx]

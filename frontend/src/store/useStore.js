@@ -125,6 +125,17 @@ const useStore = create((set, get) => ({
         ? s.selectedOrgans.filter((o) => o !== organ)
         : [...s.selectedOrgans, organ],
     })),
+  selectAllOrgans: () =>
+    set(() => ({
+      selectedOrgans: [
+        'skull', 'clavicula', 'scapula', 'humerus', 'vertebrae_C1-7', 'sternum', 'rib_1-12', 'vertebrae_T1-12', 'vertebrae_L1-5', 'costal_cartilages', 'ulna', 'radius', 'intervertebral_discs', 'hip', 'sacrum', 'carpal', 'metacarpal', 'phalanges_hand', 'femur', 'patella', 'fibula', 'tibia', 'tarsal', 'metatarsal', 'phalanges_foot',
+        'esophagus', 'stomach', 'duodenum', 'small_bowel', 'colon', 'urinary_bladder',
+        'common_carotid_artery', 'subclavian_artery', 'brachiocephalic_trunk', 'superior_vena_cava', 'aorta', 'right_atrium', 'right_ventricle', 'portal_vein', 'iliac_artery', 'iliac_vein', 'brachiocephalic_vein_left', 'pulmonary_artery', 'atrial_appendage', 'left_ventricle', 'myocardium', 'left_atrium', 'splenic_vein', 'inferior_vena_cava',
+        'brain', 'spinal_cord', 'thyroid_gland', 'trachea', 'lung_upper_lobe', 'lung_middle_lobe', 'lung_lower_lobe', 'adrenal_gland', 'spleen', 'liver', 'gallbladder', 'kidney', 'pancreas', 'prostate',
+        'supraspinatus_infraspinatus', 'subscapularis', 'deltoid', 'pectoralis_minor', 'coracobrachial', 'teres_major', 'serratus_anterior', 'autochthon', 'triceps_brachii', 'iliopsoas', 'gluteus_minimus', 'gluteus_medius', 'gluteus_maximus', 'thigh_medial_compartment', 'sartorius', 'quadriceps_femoris', 'thigh_posterior_compartment', 'trapezius',
+      ],
+    })),
+  deselectAllOrgans: () => set({ selectedOrgans: [] }),
 
   setIs3DMode: (mode) => set({ is3DMode: mode }),
   setShowCrosshair: (show) => set({ showCrosshair: show }),

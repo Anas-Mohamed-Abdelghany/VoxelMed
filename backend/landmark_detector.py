@@ -242,6 +242,7 @@ class LandmarkDetector(QThread):
             capture_output=True,
             text=True,
             env=env,
+            timeout=600,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
 

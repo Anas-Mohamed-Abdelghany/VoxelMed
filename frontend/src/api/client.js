@@ -50,12 +50,15 @@ export async function performMeasurement(view, sliceIndex, point1, point2) {
 }
 
 export async function runSegmentation(organs = [], sectors = []) {
-  const payload = Array.isArray(organs)
-    ? { organs, sectors }
-    : { organs: [], sectors: [] };
-  // Both /api/segment and /api/segmentation/run will now work
-  const { data } = await api.post('/api/segmentation/run', payload);
-  return data;
+  const payload = {
+    organs: Array.isArray(organs) ? organs : [],
+    sectors: Array.isArray(sectors) ? sectors : [],
+  };
+  return apiFetch('/segmentation/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 export async function toggleMotionRestoration() {
   return apiFetch('/restore/toggle', { method: 'POST' });

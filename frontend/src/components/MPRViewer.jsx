@@ -303,7 +303,7 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
     redrawCanvas();
   }, [redrawCanvas]);
 
-  // Coordinate mapping with 180° rotation inversion
+  // Unified coordinate mapping for mouse and touch events
   const getRawCoords = useCallback((e) => {
     const canvas = canvasRef.current;
     if (!canvas || !sliceImg) return null;
@@ -311,8 +311,21 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    let cx = Math.max(0, Math.min(canvas.width - 1, (e.clientX - rect.left) * scaleX));
-    let cy = Math.max(0, Math.min(canvas.height - 1, (e.clientY - rect.top) * scaleY));
+    // Support both mouse (clientX/clientY) and touch (touches[0]) events
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    let cx = Math.max(0, Math.min(canvas.width - 1, (clientX - rect.left) * scaleX));
+    let cy = Math.max(0, Math.min(canvas.height - 1, (clientY - rect.top) * scaleY));
 
     // Convert canvas coords back to image coords when maximized
     let x, y;
@@ -432,6 +445,85 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
     redrawCanvas();
   }, [redrawCanvas]);
 
+  // Touch handlers — same logic as mouse, with preventDefault to stop page scroll
+  const handleTouchStart = useCallback((e) => {
+    e.preventDefault();
+    const pt = getRawCoords(e);
+    if (!pt) return;
+
+    setCursorPos(pt);
+
+    if (activeTool === 'brush' || activeTool === 'smartbrush' || activeTool === 'eraser') {
+      isDrawing.current = true;
+      strokePoints.current = [pt];
+      redrawCanvas();
+    } else if (activeTool === 'caliper') {
+      caliperStart.current = pt;
+      setActiveCaliper({ p1: pt, p2: pt, dist: 0 });
+    } else {
+      syncCrosshair(pt);
+    }
+  }, [activeTool, getRawCoords, syncCrosshair, redrawCanvas]);
+
+  const handleTouchMove = useCallback((e) => {
+    e.preventDefault();
+    const pt = getRawCoords(e);
+    if (!pt) return;
+
+    setCursorPos(pt);
+
+    if (isDrawing.current) {
+      strokePoints.current.push(pt);
+      redrawCanvas();
+    } else if (caliperStart.current) {
+      const p1 = caliperStart.current;
+      const sp = volumeInfo?.spacing || [1, 1, 1];
+      const dist = Math.hypot((pt[0] - p1[0]) * sp[0], (pt[1] - p1[1]) * sp[1]);
+      setActiveCaliper({ p1, p2: pt, dist });
+      redrawCanvas();
+    } else if (activeTool === 'move') {
+      syncCrosshair(pt);
+    } else {
+      redrawCanvas();
+    }
+  }, [activeTool, getRawCoords, syncCrosshair, volumeInfo, redrawCanvas]);
+
+  const handleTouchEnd = useCallback(async (e) => {
+    const pt = getRawCoords(e);
+
+    if (isDrawing.current && strokePoints.current.length > 0) {
+      isDrawing.current = false;
+      try {
+        const radiusToUse = activeTool === 'eraser' ? eraserSize : brushSize;
+        await drawSegmentation(view, sliceIndex, {
+          points: strokePoints.current,
+          label: 1,
+          erase: activeTool === 'eraser',
+          radius: radiusToUse,
+          smart: activeTool === 'smartbrush',
+        });
+        setSegmentationActive(true);
+        refreshMask();
+      } catch (err) {}
+      strokePoints.current = [];
+    }
+
+    if (caliperStart.current && pt) {
+      const p1 = caliperStart.current;
+      if (p1[0] !== pt[0] || p1[1] !== pt[1]) {
+        try {
+          const res = await performMeasurement(view, sliceIndex, p1, pt);
+          addMeasurement(res);
+        } catch (err) {}
+      }
+      caliperStart.current = null;
+      setActiveCaliper(null);
+    }
+
+    setCursorPos(null);
+    redrawCanvas();
+  }, [view, sliceIndex, activeTool, brushSize, eraserSize, getRawCoords, setSegmentationActive, refreshMask, addMeasurement, redrawCanvas]);
+
   // Wheel slice navigation
   const handleWheel = useCallback((e) => {
     e.preventDefault();
@@ -445,6 +537,31 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => el.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
+
+  // Register touch listeners manually with { passive: false } so preventDefault works
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Find the viewport div (the flex-1 child with the canvas)
+    const viewport = el.querySelector('.cursor-crosshair');
+    if (!viewport) return;
+
+    const on = (evt, handler) => viewport.addEventListener(evt, handler, { passive: false });
+    const off = (evt, handler) => viewport.removeEventListener(evt, handler);
+
+    on('touchstart', handleTouchStart);
+    on('touchmove', handleTouchMove);
+    on('touchend', handleTouchEnd);
+    on('touchcancel', handleTouchEnd);
+
+    return () => {
+      off('touchstart', handleTouchStart);
+      off('touchmove', handleTouchMove);
+      off('touchend', handleTouchEnd);
+      off('touchcancel', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   const compass = COMPASS_LABELS[view];
 
@@ -478,7 +595,7 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
 
       {/* Viewport Canvas */}
       <div
-        className="flex-1 relative flex items-center justify-center overflow-hidden cursor-crosshair select-none"
+        className="flex-1 relative flex items-center justify-center overflow-hidden cursor-crosshair select-none touch-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

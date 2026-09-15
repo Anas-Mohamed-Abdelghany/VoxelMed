@@ -1,115 +1,262 @@
-# VoxelMed: Multi-Planar Medical Image Viewer & AI Exploration Platform
+# VoxelMed
 
-Developed as part of the **"AI for Real-World Response" Hackathon (Track 1 - Medical Sector)** by Anas, Zyad, Hassan, and Nada.
+**AI-Powered Medical Image Viewer & Exploration Platform**
 
-`MedView3D` is a Python-based interactive medical image viewer designed to provide clinical-grade multi-planar visualization alongside interactive tools. Built using PyQt5, SimpleITK, and VTK, the application allows users to interact with NIfTI and DICOM volumes across Axial, Sagittal, and Coronal planes, offering real-time 3D volume rendering and dynamic multi-view synchronization.
-
-This repository serves as our foundational codebase as we explore practical, lightweight AI integrations to assist radiologists and clinicians during image review.
+Built for the *AI for Real-World Response* Hackathon (Track 1 - Medical Sector) by Anas, Zyad, Hassan, and Nada.
 
 ---
 
-## 🛠️ Key Features
+## Overview
 
-### Current Core Viewer
-* **Multi-Planar Reconstruction (MPR):** Real-time, synchronized views across Axial, Sagittal, and Coronal planes with interactive crosshairs tracking slice locations.
-* **3D Volume Rendering:** 3D visualization using VTK (Visualization Toolkit), rendering volumetric intensity data alongside 2D slices.
-* **Interactive Manipulation:** Zooming, panning, and rotational adjustments per view, with right-click-and-drag mouse operations for rapid brightness and contrast (windowing) adjustments.
-* **Manual Labeling Suite:** Pixel-level brush and eraser tools that overlay directly onto 2D slices with multi-view synchronization.
-* **Clinical Data Compatibility:** Native support for loading NIfTI format files (`.nii`, `.nii.gz`) and importing structured DICOM series.
+VoxelMed is a dual-architecture medical imaging application for viewing, segmenting, and exploring CT/MRI volumes. It provides clinical-grade multi-planar reconstruction, real-time 3D volume rendering, AI-powered organ segmentation, and interactive volume exploration tools.
 
----
+**Two modes of operation:**
 
-## 🧠 Planned AI Enhancement Explorations
-
-During this hackathon, we are exploring several open-ended pathways to integrate AI to enhance the viewer's utility and speed up clinical workflows. Potential directions include:
-
-### 1. AI-Driven Smart Windowing (Auto-Contrast)
-* **Concept:** Implement a lightweight classification model to detect the anatomical region (e.g., brain, lung, abdomen, bone). 
-* **Enhancement:** Automatically apply optimized window width and level (brightness/contrast) presets based on the predicted tissue type, saving manual adjustment time.
-
-### 2. Intelligent Slice Selection & Landmark Detection
-* **Concept:** Train or utilize a simple neural network to identify key anatomical landmarks or slices of interest (e.g., finding the slice containing the mid-brain or a specific vertebra).
-* **Enhancement:** Allow clinicians to jump instantly to relevant regions instead of scrolling through hundreds of slices.
-
-### 3. Medical Image Denoising & Super-Resolution
-* **Concept:** Run low-resource AI models to reduce noise or reconstruct high-frequency details in low-dosage or noisy scans.
-* **Enhancement:** Provide a toggle to clear up image graininess, improving visual analysis of subtle structures.
-
-### 4. Smart Paint / Intelligent Thresholding Assistance
-* **Concept:** Use simple ML algorithms (like k-means clustering or active contours) to assist the manual brush tool.
-* **Enhancement:** Help the brush "snap" to organic boundaries (like blood vessels or organ edges) dynamically as the user draws, making manual segmentation less tedious.
+| Mode | Stack | Entry Point |
+|------|-------|-------------|
+| **Desktop** | PyQt5 + VTK + SimpleITK | `python -m backend.app` |
+| **Web** | FastAPI + React + Three.js | Backend: `uvicorn backend.main:app` / Frontend: `npm run dev` |
 
 ---
 
-## 🧰 Technology Stack
+## Features
 
-* **GUI Framework:** PyQt5 / Qt
-* **Medical Image Processing:** SimpleITK, NiBabel, OpenCV, NumPy
-* **3D Visualization:** VTK (Visualization Toolkit)
-* **Candidate AI Frameworks:** PyTorch, ONNX Runtime (for CPU-friendly, lightweight model inference)
+### Core Viewer
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Planar Reconstruction (MPR) | Synchronized Axial, Sagittal, and Coronal views |
+| 3D Volume Rendering | Real-time GPU-accelerated 3D visualization (VTK on desktop, Three.js + GLSL raymarching on web) |
+| Interactive Crosshairs | Orthogonal crosshair tracking; clicking one view syncs all three |
+| Window/Level Adjustment | Brightness/contrast via right-click-drag, sliders, or clinical presets |
+| Per-View Zoom & Pan | Independent zoom (scroll wheel) and pan (left-drag) per view panel |
+| Per-View Rotation | Configurable rotation (-180 to +180) per view |
+| Anatomical Compass | Labeled orientation badges (A/P/R/L/S/I) on each view |
+| Maximize/Restore | Any panel can be maximized to fill the viewport |
+
+### Segmentation
+
+| Feature | Description |
+|---------|-------------|
+| Manual Brush | Pixel-level painting on segmentation masks |
+| Eraser | Remove painted regions from masks |
+| Smart Brush | Edge-aware brush that snaps to tissue boundaries using Sobel gradient detection |
+| Multi-View Sync | Drawing on one view updates all orthogonal views |
+| Per-Organ Mask Toggle | Show/hide individual organ segmentation overlays |
+| Color Picker | Custom brush/label color selection |
+| Brush Size Control | Configurable diameter (1-20px) |
+
+### AI-Powered Features
+
+| Feature | Description |
+|---------|-------------|
+| TotalSegmentator Integration | Automatic multi-organ CT segmentation (81+ organs across 5 sectors) via CLI subprocess |
+| Fallback Segmentation | Threshold-based tissue masks when TotalSegmentator is unavailable |
+| Landmark Detection | Computes organ centroids from segmentation masks |
+| Landmark Navigation | Click an organ name to jump all views to its centroid |
+| Sector-Based Selection | Choose organs by anatomical sector (Skeleton, GI, Cardiovascular, Other, Muscles) |
+| Organ Map | Overview image of all TotalSegmentator organ classes |
+
+### Measurement
+
+| Feature | Description |
+|---------|-------------|
+| Smart Caliper | Auto-detects lesion boundaries via Otsu thresholding + connected components; computes RECIST diameter |
+| Manual Caliper | Two-point distance measurement with mm display and perpendicular tick marks |
+| Measurement History | All measurements stored with view, slice index, and distance |
+
+### 3D Lab (Volume Explorer)
+
+| Feature | Description |
+|---------|-------------|
+| Orthogonal Clip Planes | Three independent clipping planes (X/Y/Z) with sliders and flip buttons |
+| AI Segmentation Layers | Per-organ opacity control (selected organ vs. rest of volume) |
+| Tissue Layer Presets | Radio-button presets: All Tissue, Skin/Fat, Soft Tissue, Bone |
+| Tissue Threshold Slider | Manual intensity cutoff to peel away low-density tissue |
+| Reset All | Restore all clips, layers, and visibility to defaults |
+
+### Motion Artifact Restoration
+
+| Feature | Description |
+|---------|-------------|
+| Bilateral Filter + Unsharp Mask | Per-slice edge-preserving denoising + contrast enhancement |
+| Toggle On/Off | One-click toggle to switch between original and restored volume |
+
+### Clinical Presets (Web)
+
+| Preset | Window | Level |
+|--------|--------|-------|
+| Brain | 80 | 40 |
+| Subdural/Hemorrhage | 210 | 75 |
+| Soft Tissue | 350 | 50 |
+| Bone | 2000 | 500 |
+| Lung | 1500 | -600 |
+| Mediastinum | 40 | 40 |
+| Liver/Abdomen | 150 | 30 |
 
 ---
 
-## 🚀 Getting Started
+## Tech Stack
 
-### Prerequisites
-Make sure you have Python 3.8 or higher installed.
+### Frontend (Web)
 
-### 1. Clone the Repository
+| Category | Technology |
+|----------|------------|
+| Framework | React 18 |
+| Build Tool | Vite 5 |
+| State Management | Zustand |
+| 3D Rendering | Three.js + React Three Fiber + Drei |
+| Medical Imaging | Cornerstone Core + Math + Tools |
+| Styling | Tailwind CSS |
+| Shaders | Custom GLSL 3.0 raymarching |
+
+### Backend
+
+| Category | Technology |
+|----------|------------|
+| API Framework | FastAPI |
+| Desktop GUI | PyQt5 |
+| Medical Image I/O | SimpleITK, NiBabel |
+| Image Processing | OpenCV, NumPy, SciPy |
+| 3D Visualization | VTK |
+| AI Segmentation | TotalSegmentator (CLI) |
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/upload` | Upload NIfTI file |
+| `GET` | `/api/volume` | Get volume metadata |
+| `GET` | `/api/volume/data` | Get downsampled 3D volume as base64 |
+| `GET` | `/api/slice/{view}/{index}/base64` | Get 2D slice as base64 PNG |
+| `GET` | `/api/segmentation/{view}/{index}/base64` | Get segmentation overlay as RGBA PNG |
+| `POST` | `/api/segmentation/run` | Run AI segmentation |
+| `POST` | `/api/segmentation/draw` | Draw on segmentation mask |
+| `POST` | `/api/landmarks/{organ}/navigate` | Navigate to organ landmark |
+| `GET` | `/api/landmarks` | Get all landmark positions |
+| `POST` | `/api/measure` | Measure distance between two points |
+| `POST` | `/api/restore/toggle` | Toggle motion artifact restoration |
+
+---
+
+## Project Structure
+
+```
+VoxelMed/
+├── backend/
+│   ├── app.py                  # Desktop entry point
+│   ├── main.py                 # FastAPI web server
+│   ├── image_viewer.py         # Main QMainWindow (desktop)
+│   ├── image_processing.py     # Slice display, crosshairs, caliper, restoration
+│   ├── image_label.py          # Mouse interaction widget
+│   ├── segmentation.py         # Brush/eraser/smart brush drawing
+│   ├── vtk_renderer.py         # VTK 3D volume rendering
+│   ├── ui.py                   # Desktop GUI builder (toolbar, sidebar, views)
+│   ├── landmark_detector.py    # TotalSegmentator QThread worker
+│   ├── landmark_nav.py         # Landmark navigation sidebar
+│   ├── volume_explorer.py      # Standalone 3D Lab window
+│   ├── volume_explorer_ui.py   # 3D Lab UI
+│   ├── segmentation_config.json # Organ/sector mapping (81 organs, 5 sectors)
+│   ├── run_segmentation.py     # CLI batch segmentation script
+│   └── dicom - nfti/           # Sample data
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx             # Root layout
+│   │   ├── components/
+│   │   │   ├── LandingScreen.jsx   # File upload screen
+│   │   │   ├── Toolbar.jsx         # Top toolbar
+│   │   │   ├── Sidebar.jsx         # Left panel (Main / AI Seg / 3D Lab)
+│   │   │   ├── MPRViewer.jsx       # 2x2 grid (3 MPR + 3D)
+│   │   │   ├── VolumeRenderer.jsx  # Three.js 3D renderer
+│   │   │   ├── AISegmentation.jsx  # Organ selection UI
+│   │   │   ├── LandmarkNav.jsx     # Landmark navigation
+│   │   │   └── ControlsPanel.jsx   # Clinical presets & tools
+│   │   ├── api/client.js       # API client functions
+│   │   ├── store/useStore.js   # Zustand state management
+│   │   └── styles/             # CSS
+│   ├── public/
+│   │   └── map.png             # Organ map image
+│   ├── package.json
+│   ├── vite.config.js          # Dev server + API proxy
+│   └── tailwind.config.js      # Custom color palette
+├── LICENSE                     # MIT License
+└── README.md
+```
+
+---
+
+## Supported Formats
+
+| Format | Extensions | Read | Write |
+|--------|------------|------|-------|
+| NIfTI | `.nii`, `.nii.gz` | Yes | Yes |
+| DICOM | Series of `.dcm` | Yes | No |
+| PNG | Base64 encoded | Generated for API | N/A |
+
+---
+
+## Configuration
+
+### segmentation_config.json
+
+Maps 5 anatomical sectors to 81 TotalSegmentator organ classes:
+
+| Sector | Count | Examples |
+|--------|-------|----------|
+| Skeleton | 25 | Skull, Vertebrae, Femur, Ribs, etc. |
+| Gastrointestinal | 6 | Esophagus, Stomach, Colon, Bladder |
+| Cardiovascular | 18 | Aorta, Heart chambers, Vena Cava |
+| Other organs | 14 | Brain, Liver, Kidney, Lungs, Spleen |
+| Muscles | 18 | Deltoid, Trapezius, Gluteus, Quadriceps |
+
+### Backend Session State
+
+Each session stores:
+```python
+{
+    "array": np.ndarray,           # Current volume (may be restored)
+    "original_array": np.ndarray,  # Original unmodified volume
+    "is_restored": bool,           # Motion restoration active
+    "spacing": tuple,              # Voxel spacing in mm
+    "origin": tuple,               # Volume origin
+    "direction": tuple,            # Direction cosines
+    "mask": np.uint8 array,        # Segmentation mask
+    "filename": str,               # Original filename
+    "landmarks": dict,             # {organ_name: [z, y, x]}
+    "label_colormap": dict,        # {label_id: (R, G, B)}
+}
+```
+
+---
+
+## Getting Started
+
+### Desktop
+
 ```bash
-git clone https://github.com/your-username/MedView3D.git
-cd MedView3D
+pip install PyQt5 vtk SimpleITK nibabel opencv-python numpy scipy
+python -m backend.app
 ```
 
-### 2. Set Up a Virtual Environment (Recommended)
+### Web
+
 ```bash
-# On macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+# Terminal 1 - Backend
+pip install fastapi uvicorn simpleitk nibabel opencv-python numpy scipy pillow
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
-# On Windows
-python -m venv venv
-venv\Scripts\activate
+# Terminal 2 - Frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-### 3. Install Dependencies
-```bash
-pip install numpy PyQt5 SimpleITK nibabel opencv-python vtk
-```
-
-### 4. Run the Application
-```bash
-python main.py
-```
+Open `http://localhost:3000` in your browser.
 
 ---
 
-## 📂 Project Structure
+## License
 
-```text
-MedView3D/
-│
-├── resources/              # UI assets, icons, and sample metadata
-├── dialogs.py              # Auxiliary popups (Help dialog, Window-Level adjustments)
-├── image_label.py          # Custom QLabel widget for custom mouse interactions (pan/draw/zoom)
-├── image_processing.py     # Image loading, slicing, and 2D rendering computations
-├── image_viewer.py         # Main QMainWindow coordinating the application lifecycle
-├── main.py                 # Application entry point
-├── segmentation.py         # Manual drawing logic and mask operations
-├── ui.py                   # UI building blocks and layout configurations
-├── vtk_renderer.py         # 3D volumetric rendering via VTK
-└── README.md               # Project documentation
-```
-
----
-
-## 🤝 Collaboration Guidelines
-
-To maintain a clean workflow during the hackathon:
-
-1. **Keep the Main Thread Responsive:** Any AI processing or heavy calculation should run asynchronously (e.g., using `QThread` or `QRunnable`) so the viewer does not freeze during computation.
-2. **Feature Branching:** Create a feature-specific branch for your experiments:
-   ```bash
-   git checkout -b feature/ai-experiment-name
-   ```
-3. **Testing:** Verify that loading files and 2D/3D rendering works correctly before submitting any pull requests.
+MIT License - Copyright 2026 Anas Mohamed Abdelghany

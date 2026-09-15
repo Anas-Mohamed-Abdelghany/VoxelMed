@@ -32,16 +32,97 @@ app.add_middleware(
 volumes = {}
 
 COLORMAP = [
-    (239, 68, 68),   # Red
-    (34, 197, 94),   # Green
-    (59, 130, 246),  # Blue
-    (245, 158, 11),  # Amber
-    (168, 85, 247),  # Purple
-    (236, 72, 153),  # Rose/Pink
-    (20, 184, 166),  # Teal
-    (249, 115, 22),  # Orange
-    (14, 165, 233),  # Sky
-    (132, 204, 22),  # Lime
+    # Bones (Skeleton) - distinct warm tones
+    (210, 190, 160),  # Skull - tan
+    (195, 175, 145),  # Clavicula - sandy
+    (180, 160, 130),  # Scapula - khaki
+    (200, 185, 155),  # Humerus - wheat
+    (190, 170, 140),  # Vertebrae C - camel
+    (215, 195, 165),  # Sternum - pale gold
+    (185, 165, 135),  # Rib 1-12 - sand
+    (205, 185, 150),  # Vertebrae T - golden tan
+    (200, 180, 148),  # Vertebrae L - warm sand
+    (170, 155, 125),  # Costal Cartilages - olive tan
+    (175, 158, 128),  # Ulna - dusty gold
+    (188, 168, 138),  # Radius - sandy brown
+    (165, 148, 120),  # Intervertebral Discs - dark tan
+    (210, 192, 158),  # Hip - light gold
+    (195, 178, 148),  # Sacrum - warm khaki
+    (172, 155, 125),  # Carpal - muted gold
+    (182, 165, 135),  # Metacarpal - tan
+    (178, 160, 130),  # Phalanges Hand - sandy
+    (215, 198, 162),  # Femur - bright tan
+    (198, 180, 150),  # Patella - pale gold
+    (185, 168, 138),  # Fibula - camel
+    (205, 188, 155),  # Tibia - warm wheat
+    (170, 155, 125),  # Tarsal - dark tan
+    (180, 162, 132),  # Metatarsal - sandy
+    (175, 158, 128),  # Phalanges Foot - tan
+
+    # Gastrointestinal - warm earth tones
+    (180, 120, 90),   # Esophagus - terracotta
+    (160, 130, 100),  # Stomach - warm brown
+    (170, 140, 110),  # Duodenum - tan
+    (150, 120, 95),   # Small Bowel - sienna
+    (140, 110, 85),   # Colon - burnt umber
+    (120, 150, 180),  # Urinary Bladder - muted blue
+
+    # Cardiovascular - red/blue/pink tones
+    (180, 50, 50),    # Common Carotid Artery - deep red
+    (60, 120, 180),   # Subclavian Artery - steel blue
+    (150, 70, 70),    # Brachiocephalic Trunk - dark red
+    (50, 100, 160),   # Superior Vena Cava - navy blue
+    (200, 40, 40),    # Aorta - bright red
+    (180, 80, 100),   # Right Atrium - rose
+    (170, 60, 80),    # Right Ventricle - deep rose
+    (140, 100, 60),   # Portal Vein - bronze
+    (160, 50, 50),    # Iliac Artery - crimson
+    (50, 90, 150),    # Iliac Vein - slate blue
+    (70, 110, 170),   # Brachiocephalic Vein - medium blue
+    (100, 60, 120),   # Pulmonary Artery - plum
+    (190, 90, 110),   # Atrial Appendage - dusty rose
+    (180, 70, 90),    # Left Ventricle - coral red
+    (160, 50, 60),    # Myocardium - heart red
+    (170, 80, 100),   # Left Atrium - mauve
+    (80, 100, 140),   # Splenic Vein - steel blue
+    (45, 85, 145),    # Inferior Vena Cava - dark blue
+
+    # Other organs - varied distinct colors
+    (140, 100, 160),  # Brain - lavender
+    (120, 140, 160),  # Spinal Cord - steel
+    (160, 180, 140),  # Thyroid Gland - sage green
+    (180, 160, 140),  # Trachea - khaki
+    (100, 160, 200),  # Lung Upper Lobe - sky blue
+    (90, 150, 190),   # Lung Middle Lobe - light blue
+    (80, 140, 180),   # Lung Lower Lobe - cerulean
+    (180, 140, 80),   # Adrenal Gland - golden brown
+    (160, 60, 80),    # Spleen - burgundy
+    (120, 100, 60),   # Liver - olive brown
+    (100, 140, 80),   # Gallbladder - moss green
+    (150, 120, 100),  # Kidney - warm tan
+    (180, 160, 100),  # Pancreas - ochre
+    (130, 110, 120),  # Prostate - mauve gray
+
+    # Muscles - red/pink/coral tones
+    (180, 80, 80),    # Supraspinatus - brick red
+    (170, 70, 70),    # Infraspinatus - crimson
+    (190, 90, 90),    # Subscapularis - salmon
+    (160, 60, 60),    # Deltoid - deep coral
+    (175, 75, 75),    # Pectoralis Minor - rose red
+    (185, 85, 85),    # Coracobrachial - pink red
+    (165, 65, 65),    # Teres Major - dark salmon
+    (155, 55, 55),    # Serratus Anterior - maroon
+    (145, 50, 50),    # Autochthon - deep crimson
+    (175, 80, 80),    # Triceps Brachii - warm red
+    (165, 70, 70),    # Iliopsoas - dusty red
+    (180, 85, 85),    # Gluteus Minimus - light coral
+    (170, 75, 75),    # Gluteus Medius - medium red
+    (160, 65, 65),    # Gluteus Maximus - dark coral
+    (155, 60, 60),    # Thigh Medial - crimson
+    (185, 90, 90),    # Sartorius - pale red
+    (175, 80, 80),    # Quadriceps Femoris - coral
+    (150, 55, 55),    # Thigh Posterior - deep red
+    (165, 70, 70),    # Trapezius - warm crimson
 ]
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "segmentation_config.json")
@@ -227,6 +308,8 @@ async def get_volume_data(session_id: str = "default"):
         "mask": mask_b64,
         "dims": dims,
         "spacing": list(vol["spacing"]),
+        "label_colormap": {str(k): list(v) for k, v in vol.get("label_colormap", {}).items()},
+        "organ_to_label": vol.get("organ_to_label", {}),
     }
 
 @app.get("/api/slice/{view}/{slice_index}/base64")
@@ -273,10 +356,11 @@ async def get_segmentation_slice_base64(view: str, slice_index: int, session_id:
     h, w = slice_data.shape
     # 4-Channel RGBA: alpha=0 for background so it NEVER darkens the CT scan
     color_img = np.zeros((h, w, 4), dtype=np.uint8)
+    label_colormap = vol.get("label_colormap", {})
     for label_id in np.unique(slice_data):
         if label_id == 0:
             continue
-        rgb = COLORMAP[(int(label_id) - 1) % len(COLORMAP)]
+        rgb = label_colormap.get(int(label_id), COLORMAP[(int(label_id) - 1) % len(COLORMAP)])
         color_img[slice_data == label_id] = [rgb[0], rgb[1], rgb[2], 255]
 
     return {"image": arr_to_png_base64(color_img), "slice_index": slice_index}
@@ -298,6 +382,7 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
     seg_successful = False
     combined_mask = np.zeros_like(arr, dtype=np.uint8)
     landmarks = {}
+    organ_to_label = {}
     label_idx = 1
 
     if totalseg_exe:
@@ -359,6 +444,7 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
                                 combined_mask[mask_data > 0] = label_idx
                                 cz, cy, cx = center_of_mass(mask_data)
                                 landmarks[organ_name] = [int(round(cz)), int(round(cy)), int(round(cx))]
+                                organ_to_label[organ_name] = label_idx
                                 vol["label_colormap"][label_idx] = COLORMAP[(label_idx - 1) % len(COLORMAP)]
                                 label_idx += 1
 
@@ -395,6 +481,7 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
                 combined_mask[mask_bool] = label_idx
                 cz, cy, cx = center_of_mass(mask_bool.astype(np.float32))
                 landmarks[name] = [int(round(cz)), int(round(cy)), int(round(cx))]
+                organ_to_label[name] = label_idx
                 vol["label_colormap"][label_idx] = COLORMAP[(label_idx - 1) % len(COLORMAP)]
                 label_idx += 1
 
@@ -402,6 +489,7 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
 
     vol["mask"] = combined_mask
     vol["landmarks"] = landmarks
+    vol["organ_to_label"] = organ_to_label
 
     return {
         "status": "ok",

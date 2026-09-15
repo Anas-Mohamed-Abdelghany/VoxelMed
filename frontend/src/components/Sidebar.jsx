@@ -40,6 +40,7 @@ export default function Sidebar() {
     volumeInfo,
     segmentationActive,
     selectedOrgans,
+    landmarkPositions,
     // 3D Lab
     lab3d,
     updateLab3d,
@@ -351,14 +352,14 @@ export default function Sidebar() {
               <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">AI Segmentation</h4>
               <div className="space-y-1.5">
                 <label className="text-[11px] text-med-text-dim">Organ:</label>
-                {segmentationActive && selectedOrgans.length > 0 ? (
+                {segmentationActive && Object.keys(landmarkPositions).length > 0 ? (
                   <select
                     value={lab3d.selectedOrgan}
                     onChange={(e) => updateLab3d('selectedOrgan', e.target.value)}
                     className="w-full bg-[#181824] border border-med-border rounded px-2 py-1 text-med-text text-xs focus:outline-none focus:border-med-accent"
                   >
                     <option value="">— None —</option>
-                    {selectedOrgans.map((organ) => (
+                    {Object.keys(landmarkPositions).map((organ) => (
                       <option key={organ} value={organ}>{organ.replace(/_/g, ' ')}</option>
                     ))}
                   </select>

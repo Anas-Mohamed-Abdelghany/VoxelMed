@@ -299,23 +299,6 @@ export default function Sidebar() {
               <p className="text-med-text-dim text-[11px] mt-1">Cut, crop, and peel away layers to see inside the volume.</p>
             </div>
 
-            {/* 1. Box Crop */}
-            <div className="space-y-1.5">
-              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">Box Crop</h4>
-              <p className="text-med-text-dim text-[10px]">Drag the box handles in the 3D view to cut away everything outside the box.</p>
-              <label className="flex items-center gap-2 text-xs text-med-text cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={lab3d.boxCrop}
-                  onChange={(e) => updateLab3d('boxCrop', e.target.checked)}
-                  className="accent-med-accent w-3.5 h-3.5"
-                />
-                Enable box crop
-              </label>
-            </div>
-
-            <hr className="border-med-border/80" />
-
             {/* 2. Orthogonal Clips */}
             <div className="space-y-2">
               <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">Orthogonal Clips</h4>

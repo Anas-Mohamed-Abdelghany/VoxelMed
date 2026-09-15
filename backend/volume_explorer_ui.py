@@ -47,9 +47,6 @@ class VolumeExplorerUIMixin:
         layout.addWidget(self._build_ai_seg_group())
         layout.addWidget(self._hline())
 
-        layout.addWidget(self._build_box_crop_group())
-        layout.addWidget(self._hline())
-
         layout.addWidget(self._build_clip_planes_group())
         layout.addWidget(self._hline())
 
@@ -73,25 +70,6 @@ class VolumeExplorerUIMixin:
         line.setFrameShadow(QFrame.Sunken)
         line.setStyleSheet("color: #cccccc;")
         return line
-
-    # -- Box crop ------------------------------------------------------------
-    def _build_box_crop_group(self):
-        box = QGroupBox("Box Crop")
-        box.setStyleSheet(self._group_style())
-        v = QVBoxLayout(box)
-
-        info = QLabel("Drag the box handles in the 3D view to cut away "
-                       "everything outside the box.")
-        info.setWordWrap(True)
-        info.setStyleSheet("color: #555555; font-size: 11px;")
-        v.addWidget(info)
-
-        self.box_crop_checkbox = QCheckBox("Enable box crop")
-        self.box_crop_checkbox.setStyleSheet("color: #333333; font-size: 11px;")
-        self.box_crop_checkbox.stateChanged.connect(self._on_box_crop_toggled)
-        v.addWidget(self.box_crop_checkbox)
-
-        return box
 
     # -- Orthogonal clipping planes ------------------------------------------
     def _build_clip_planes_group(self):

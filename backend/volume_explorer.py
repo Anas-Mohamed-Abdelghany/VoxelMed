@@ -10,10 +10,7 @@ given the data already loaded in the main viewer (image_array, spacing,
 segmentation_mask, label_colormap) — it does not load its own files.
 
 Tools provided:
-    1. Box Crop          – an interactive vtkBoxWidget. Drag its handles to
-                            cut away anything outside the box, "opening up"
-                            the volume from any side.
-    2. Orthogonal Clips  – three independent clipping planes (X / Y / Z)
+    1. Orthogonal Clips  – three independent clipping planes (X / Y / Z)
                             with sliders, each with a "flip side" button —
                             the classic "slice the volume open" tool.
     3. Organ Layers      – if a per-organ segmentation mask is available
@@ -185,7 +182,6 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
         self.volume_property    = None
         self.ctf                = None
         self.otf                = None
-        self.box_widget         = None
         self.clip_planes        = {}
         self.clip_enabled       = {"x": False, "y": False, "z": False}
         self.clip_flipped       = {"x": False, "y": False, "z": False}
@@ -269,19 +265,6 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
 
         self.renderer.AddVolume(self.volume)
 
-        # Box widget for interactive cropping
-        self.box_widget = vtk.vtkBoxWidget()
-        self.box_widget.SetInteractor(self.interactor)
-        self.box_widget.SetPlaceFactor(1.0)
-        self.box_widget.PlaceWidget(self.vtk_image.GetBounds())
-        self.box_widget.InsideOutOn()
-        self.box_widget.GetOutlineProperty().SetColor(1, 0.6, 0)
-        self.box_widget.AddObserver("InteractionEvent", self._on_box_widget_interaction)
-        self.box_widget.Off()
-
-        self.crop_planes = vtk.vtkPlanes()
-        self.volume_mapper.AddClippingPlane  # noqa
-
         bounds = self.vtk_image.GetBounds()
         self.clip_planes["x"] = vtk.vtkPlane()
         self.clip_planes["x"].SetOrigin((bounds[0] + bounds[1]) / 2.0, 0, 0)
@@ -320,31 +303,6 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
             self.vtk_widget.GetRenderWindow().Render()
 
     # ======================================================================
-    # Box crop handlers
-    # ======================================================================
-    def _on_box_crop_toggled(self, state):
-        enabled = state == Qt.Checked
-        if enabled:
-            self.box_widget.On()
-            self._apply_box_clip()
-        else:
-            self.box_widget.Off()
-            self.volume_mapper.RemoveAllClippingPlanes()
-            self._reapply_orthogonal_clips()
-        self.vtk_widget.GetRenderWindow().Render()
-
-    def _on_box_widget_interaction(self, widget, event):
-        self._apply_box_clip()
-
-    def _apply_box_clip(self):
-        planes = vtk.vtkPlanes()
-        self.box_widget.GetPlanes(planes)
-        self.volume_mapper.RemoveAllClippingPlanes()
-        self.volume_mapper.SetClippingPlanes(planes)
-        self._reapply_orthogonal_clips(keep_existing=True)
-        self.vtk_widget.GetRenderWindow().Render()
-
-    # ======================================================================
     # Orthogonal clip-plane handlers
     # ======================================================================
     def _on_clip_toggled(self, axis, state):
@@ -375,10 +333,6 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
     def _reapply_orthogonal_clips(self, keep_existing=False):
         if not keep_existing:
             self.volume_mapper.RemoveAllClippingPlanes()
-            if self.box_widget.GetEnabled():
-                planes = vtk.vtkPlanes()
-                self.box_widget.GetPlanes(planes)
-                self.volume_mapper.SetClippingPlanes(planes)
 
         for axis, enabled in self.clip_enabled.items():
             if enabled:
@@ -558,8 +512,6 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
             self._ai_organ_combo.blockSignals(False)
 
     def reset_all(self):
-        self.box_crop_checkbox.setChecked(False)
-
         for axis in ["x", "y", "z"]:
             self.clip_checkboxes[axis].setChecked(False)
             self.clip_flipped[axis] = False
@@ -590,7 +542,6 @@ class VolumeExplorerWindow(VolumeExplorerUIMixin, QMainWindow):
             self._seg_worker.quit()
             self._seg_worker.wait(2000)
         try:
-            self.box_widget.Off()
             rw = self.interactor.GetRenderWindow()
             rw.Finalize()
             self.interactor.TerminateApp()

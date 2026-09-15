@@ -103,10 +103,9 @@ class ImageViewer(
         self._lab_volume_mapper = None
         self._lab_volume = None
         self._lab_volume_property = None
-        self._lab_ctf = None
-        self._lab_otf = None
-        self._lab_box_widget = None
-        self._lab_clip_planes = {}
+            self._lab_ctf = None
+            self._lab_otf = None
+            self._lab_clip_planes = {}
         self._lab_clip_enabled = {"x": False, "y": False, "z": False}
         self._lab_clip_flipped = {"x": False, "y": False, "z": False}
         self._lab_bounds = None
@@ -253,7 +252,6 @@ class ImageViewer(
             self._lab_volume_property = None
             self._lab_ctf = None
             self._lab_otf = None
-            self._lab_box_widget = None
             self._lab_clip_planes = {}
             self._lab_clip_enabled = {"x": False, "y": False, "z": False}
             self._lab_clip_flipped = {"x": False, "y": False, "z": False}
@@ -339,16 +337,6 @@ class ImageViewer(
         self._lab_volume.SetProperty(self._lab_volume_property)
 
         self.lab_renderer.AddVolume(self._lab_volume)
-
-        # Box widget for interactive cropping
-        self._lab_box_widget = vtk.vtkBoxWidget()
-        self._lab_box_widget.SetInteractor(self.lab_interactor)
-        self._lab_box_widget.SetPlaceFactor(1.0)
-        self._lab_box_widget.PlaceWidget(self._lab_vtk_image.GetBounds())
-        self._lab_box_widget.InsideOutOn()
-        self._lab_box_widget.GetOutlineProperty().SetColor(1, 0.6, 0)
-        self._lab_box_widget.AddObserver("InteractionEvent", self._on_lab_box_widget_interaction)
-        self._lab_box_widget.Off()
 
         bounds = self._lab_vtk_image.GetBounds()
         self._lab_clip_planes["x"] = vtk.vtkPlane()
@@ -464,33 +452,6 @@ class ImageViewer(
             self.lab_vtk_widget.GetRenderWindow().Render()
 
     # ======================================================================
-    # 3D Lab box crop handlers
-    # ======================================================================
-    def _on_lab_box_crop_toggled(self, state):
-        enabled = state == Qt.Checked
-        if enabled:
-            self._lab_box_widget.On()
-            self._lab_apply_box_clip()
-        else:
-            self._lab_box_widget.Off()
-            self._lab_volume_mapper.RemoveAllClippingPlanes()
-            self._lab_reapply_orthogonal_clips()
-        if self.lab_vtk_widget is not None:
-            self.lab_vtk_widget.GetRenderWindow().Render()
-
-    def _on_lab_box_widget_interaction(self, widget, event):
-        self._lab_apply_box_clip()
-
-    def _lab_apply_box_clip(self):
-        planes = vtk.vtkPlanes()
-        self._lab_box_widget.GetPlanes(planes)
-        self._lab_volume_mapper.RemoveAllClippingPlanes()
-        self._lab_volume_mapper.SetClippingPlanes(planes)
-        self._lab_reapply_orthogonal_clips(keep_existing=True)
-        if self.lab_vtk_widget is not None:
-            self.lab_vtk_widget.GetRenderWindow().Render()
-
-    # ======================================================================
     # 3D Lab orthogonal clip-plane handlers
     # ======================================================================
     def _on_lab_clip_toggled(self, axis, state):
@@ -525,10 +486,6 @@ class ImageViewer(
     def _lab_reapply_orthogonal_clips(self, keep_existing=False):
         if not keep_existing:
             self._lab_volume_mapper.RemoveAllClippingPlanes()
-            if self._lab_box_widget.GetEnabled():
-                planes = vtk.vtkPlanes()
-                self._lab_box_widget.GetPlanes(planes)
-                self._lab_volume_mapper.SetClippingPlanes(planes)
 
         for axis, enabled in self._lab_clip_enabled.items():
             if enabled:
@@ -632,9 +589,6 @@ class ImageViewer(
     # 3D Lab reset
     # ======================================================================
     def _lab_reset_all(self):
-        if hasattr(self, '_lab_box_crop_checkbox'):
-            self._lab_box_crop_checkbox.setChecked(False)
-
         for axis in ["x", "y", "z"]:
             if hasattr(self, '_lab_clip_checkboxes'):
                 self._lab_clip_checkboxes[axis].setChecked(False)

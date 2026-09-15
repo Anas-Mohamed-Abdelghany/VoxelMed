@@ -170,22 +170,6 @@ class UIBuilderMixin:
         inner_layout.setContentsMargins(8, 4, 8, 4)
         inner_layout.setSpacing(4)
 
-        # -- Box Crop --
-        box = QGroupBox("Box Crop")
-        box.setStyleSheet(self._lab_group_style())
-        bv = QVBoxLayout(box)
-        info = QLabel("Drag the box handles in the 3D view to cut away everything outside the box.")
-        info.setWordWrap(True)
-        info.setStyleSheet("color: #555555; font-size: 11px;")
-        bv.addWidget(info)
-        self._lab_box_crop_checkbox = QCheckBox("Enable box crop")
-        self._lab_box_crop_checkbox.setStyleSheet("color: #333333; font-size: 11px;")
-        self._lab_box_crop_checkbox.stateChanged.connect(self._on_lab_box_crop_toggled)
-        bv.addWidget(self._lab_box_crop_checkbox)
-        inner_layout.addWidget(box)
-
-        inner_layout.addWidget(self._lab_hline())
-
         # -- Orthogonal Clips --
         clip_box = QGroupBox("Orthogonal Clips")
         clip_box.setStyleSheet(self._lab_group_style())

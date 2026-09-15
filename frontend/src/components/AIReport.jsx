@@ -6,10 +6,12 @@ import { askAIReportStream, getSliceAsBase64, getMontageAsBase64 } from '../api/
 export default function AIReport() {
   const { aiMessages, setAiMessages, currentSlice, windowCenter, windowWidth, volumeInfo } = useStore();
   const [input, setInput] = useState('');
-  const [sliceMode, setSliceMode] = useState('all'); // 'current' | 'all'
+  const [sliceMode, setSliceMode] = useState('all'); // 'own' | 'current' | 'all'
+  const [attachedImages, setAttachedImages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -55,20 +57,44 @@ export default function AIReport() {
     return results.filter(Boolean);
   }, [windowCenter, windowWidth]);
 
+  const handleFileSelect = useCallback((e) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachedImages((prev) => [...prev, {
+          url: reader.result,
+          label: file.name,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }, []);
+
   const handleSend = useCallback(async (customPrompt, forceAllSlices = false) => {
     const text = customPrompt || input.trim();
-    if (!text) return;
+    if (!text && attachedImages.length === 0) return;
     if (isLoading) return;
 
-    const images = forceAllSlices
-      ? await fetchAllSlices()
-      : sliceMode === 'current'
-        ? await fetchCurrentSlices()
-        : await fetchAllSlices();
+    let images;
+    if (forceAllSlices) {
+      images = await fetchAllSlices();
+    } else if (sliceMode === 'own') {
+      images = [];
+    } else if (sliceMode === 'current') {
+      images = await fetchCurrentSlices();
+    } else {
+      images = await fetchAllSlices();
+    }
+
+    // Merge with user-uploaded images (always included)
+    const allImages = [...images, ...attachedImages];
 
     const content = [];
-    content.push({ type: 'text', text });
-    for (const img of images) {
+    if (text) content.push({ type: 'text', text });
+    for (const img of allImages) {
       content.push({ type: 'image_url', image_url: { url: img.url } });
     }
 
@@ -77,6 +103,7 @@ export default function AIReport() {
 
     setAiMessages(newMessages);
     setInput('');
+    setAttachedImages([]);
     setIsLoading(true);
     setStreamingText('');
 
@@ -105,7 +132,7 @@ export default function AIReport() {
         setAiMessages([...newMessages, { role: 'assistant', content: `Error: ${err}` }]);
       }
     );
-  }, [input, sliceMode, aiMessages, isLoading, setAiMessages, fetchCurrentSlices, fetchAllSlices]);
+  }, [input, sliceMode, attachedImages, aiMessages, isLoading, setAiMessages, fetchCurrentSlices, fetchAllSlices]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -205,39 +232,71 @@ export default function AIReport() {
       {/* Slice mode selector */}
       <div className="px-2 py-1.5 border-t border-med-border">
         <div className="flex gap-1">
-          <button
-            onClick={() => setSliceMode('current')}
-            disabled={isLoading}
-            className={`flex-1 py-1.5 rounded text-[10px] font-medium border transition-all disabled:opacity-30 ${
-              sliceMode === 'current'
-                ? 'bg-med-accent/20 border-med-accent text-med-accent'
-                : 'bg-[#181824] border-med-border text-med-text-dim hover:text-med-text hover:border-med-accent/40'
-            }`}
-          >
-            📎 Current slices
-          </button>
-          <button
-            onClick={() => setSliceMode('all')}
-            disabled={isLoading}
-            className={`flex-1 py-1.5 rounded text-[10px] font-medium border transition-all disabled:opacity-30 ${
-              sliceMode === 'all'
-                ? 'bg-med-accent/20 border-med-accent text-med-accent'
-                : 'bg-[#181824] border-med-border text-med-text-dim hover:text-med-text hover:border-med-accent/40'
-            }`}
-          >
-            🖼️ All slices
-          </button>
+          {[
+            { id: 'own', icon: '💻', label: 'Own' },
+            { id: 'current', icon: '📎', label: 'Current' },
+            { id: 'all', icon: '🖼️', label: 'All' },
+          ].map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setSliceMode(m.id)}
+              disabled={isLoading}
+              className={`flex-1 py-1.5 rounded text-[10px] font-medium border transition-all disabled:opacity-30 ${
+                sliceMode === m.id
+                  ? 'bg-med-accent/20 border-med-accent text-med-accent'
+                  : 'bg-[#181824] border-med-border text-med-text-dim hover:text-med-text hover:border-med-accent/40'
+              }`}
+            >
+              {m.icon} {m.label}
+            </button>
+          ))}
         </div>
         <p className="text-[9px] text-med-text-dim mt-1 text-center">
-          {sliceMode === 'current'
-            ? '3 individual slices sent as PNG'
-            : `3 montage grids (one per view) containing all ${totalSlices} slices`}
+          {sliceMode === 'own'
+            ? 'Only your uploaded images'
+            : sliceMode === 'current'
+              ? '3 individual CT slices'
+              : `All ${totalSlices} CT slices (montage)`}
         </p>
       </div>
 
+      {/* Attached images preview */}
+      {attachedImages.length > 0 && (
+        <div className="px-2 py-1 border-t border-med-border flex gap-1 flex-wrap">
+          {attachedImages.map((img, i) => (
+            <div key={i} className="relative group">
+              <img src={img.url} alt={img.label} className="w-9 h-9 rounded border border-med-border object-cover" />
+              <span className="absolute -bottom-0.5 -right-0.5 text-[7px] bg-med-dark/80 text-med-text-dim px-0.5 rounded max-w-[40px] truncate">{img.label}</span>
+              <button
+                onClick={() => setAttachedImages((prev) => prev.filter((_, j) => j !== i))}
+                className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Input area */}
       <div className="px-2 py-1.5 border-t border-med-border">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
         <div className="flex gap-1.5">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="px-2 py-1 bg-[#181824] hover:bg-[#222234] border border-med-border rounded text-[10px] text-med-text-dim hover:text-med-text transition-colors disabled:opacity-30 shrink-0"
+            title="Attach image from PC"
+          >
+            📎
+          </button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -249,7 +308,7 @@ export default function AIReport() {
           <div className="flex flex-col gap-1">
             <button
               onClick={() => handleSend()}
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || (!input.trim() && attachedImages.length === 0)}
               className="px-3 py-1 bg-med-accent hover:bg-med-accent-hover text-white text-[10px] font-semibold rounded transition-colors disabled:opacity-30"
             >
               {isLoading ? '...' : 'Send'}

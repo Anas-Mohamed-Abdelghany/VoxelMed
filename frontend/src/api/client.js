@@ -9,9 +9,10 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
-export async function uploadFile(file) {
+export async function uploadFile(files) {
   const formData = new FormData();
-  formData.append('file', file);
+  const list = Array.isArray(files) ? files : [files];
+  list.forEach((f) => formData.append('files', f));
   return apiFetch('/upload', { method: 'POST', body: formData });
 }
 
@@ -136,6 +137,19 @@ export async function runRadiomicsAnalysis(patientHeight = 1.75) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Analysis failed' }));
     throw new Error(err.detail || 'Failed to extract radiomics');
+  }
+  return res.json();
+}
+
+export async function calculateOrganVolumes() {
+  const res = await fetch('/api/radiomics/volumes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Analysis failed' }));
+    throw new Error(err.detail || 'Failed to calculate organ volumes');
   }
   return res.json();
 }

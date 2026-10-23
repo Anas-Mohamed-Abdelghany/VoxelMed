@@ -31,9 +31,9 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 try:
-    from backend.radiomics_engine import RadiomicsEngine
+    from backend.radiomics_engine import RadiomicsEngine, biomarker_rows
 except ModuleNotFoundError:  # running with backend/ itself on sys.path
-    from radiomics_engine import RadiomicsEngine
+    from radiomics_engine import RadiomicsEngine, biomarker_rows
 
 load_dotenv()
 
@@ -253,27 +253,206 @@ def enhanced_smart_brush(target_slice, ref_slice, center_x, center_y, radius, la
 # ----------------------------------------------------------------------
 # API Endpoints
 # ----------------------------------------------------------------------
-@app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), session_id: str = "default"):
-    content = await file.read()
-    filename = file.filename.lower()
+def _dicom_slice_position(img) -> float:
+    """z position (ImagePositionPatient[2]) of a single DICOM slice, if present."""
+    try:
+        if not img.HasMetaDataKey("0020|0032"):
+            return None
+        vals = [float(v) for v in img.GetMetaData("0020|0032").replace("\\", " ").split()]
+        return vals[2] if len(vals) >= 3 else None
+    except ValueError:
+        return None
 
-    if filename.endswith((".nii", ".nii.gz")):
-        tmp = tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False)
-        tmp.write(content)
-        tmp.close()
-        arr, spacing, origin, direction = load_nifti(tmp.name)
-        os.unlink(tmp.name)
-    elif filename.endswith((".jpg", ".jpeg", ".png")):
-        # 2D raster image: load as grayscale and treat as a single-slice
-        # volume so the rest of the 3D pipeline works unchanged.
-        img = Image.open(io.BytesIO(content)).convert("L")
-        arr = np.asarray(img, dtype=np.uint8)[np.newaxis, ...]
-        spacing = (1.0, 1.0, 1.0)
-        origin = (0.0, 0.0, 0.0)
-        direction = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+def _dicom_instance_number(img) -> int:
+    """InstanceNumber of a single DICOM slice, if present."""
+    try:
+        if not img.HasMetaDataKey("0020|0013"):
+            return None
+        return int(float(img.GetMetaData("0020|0013").strip()))
+    except ValueError:
+        return None
+
+def _dicom_float_tag(img, tag) -> float:
+    """Generic float-valued DICOM metadata tag, if present."""
+    try:
+        if not img.HasMetaDataKey(tag):
+            return None
+        return float(img.GetMetaData(tag).strip())
+    except ValueError:
+        return None
+
+async def _load_dicom_series(dcm_uploads: List[UploadFile]):
+    """
+    Read one or more DICOM (.dcm) uploads as a single series.
+    A study folder selection often contains several series (scouts,
+    reconstructions, prior scans...): the largest detected series wins and
+    unrelated files are ignored instead of stacking slices from mixed
+    series into one garbled volume.
+    Returns (array, spacing, origin, direction) with 3D-normalised metadata.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="voxelmed_dcm_")
+    try:
+        paths = []
+        for i, f in enumerate(dcm_uploads):
+            # Index-prefixed names: selections from different folders can
+            # share basenames and would otherwise overwrite each other.
+            safe_name = "%05d_%s" % (i, os.path.basename(f.filename or "slice.dcm"))
+            path = os.path.join(tmp_dir, safe_name)
+            with open(path, "wb") as out:
+                out.write(await f.read())
+            paths.append(path)
+
+        reader = sitk.ImageSeriesReader()
+
+        # Group uploads by SeriesInstanceUID and keep the largest series;
+        # GDCM also sorts its slices by image position.
+        best_names = []
+        try:
+            for sid in reader.GetGDCMSeriesIDs(tmp_dir) or []:
+                names = list(reader.GetGDCMSeriesFileNames(tmp_dir, sid))
+                if len(names) > len(best_names):
+                    best_names = names
+        except Exception:
+            best_names = []
+
+        # If every detected series holds a single file while several files
+        # were uploaded, the UIDs were regenerated per slice (anonymisation):
+        # grouping is meaningless, so stack everything manually instead.
+        if len(paths) > 1 and len(best_names) <= 1:
+            best_names = []
+
+        if best_names:
+            reader.SetFileNames(best_names)
+            image = reader.Execute()
+            arr = sitk.GetArrayFromImage(image)
+            spacing = image.GetSpacing()
+            origin = image.GetOrigin()
+            direction = image.GetDirection()
+            skipped = len(paths) - len(best_names)
+            if skipped > 0:
+                print(f"[VoxelMed INFO] DICOM upload: using the largest series "
+                      f"({len(best_names)} slices); ignored {skipped} file(s) "
+                      f"from other series.")
+        else:
+            # No series detected (broken/missing SeriesInstanceUID):
+            # read every file and stack the slices in acquisition order.
+            slices = []
+            for p in paths:
+                img = sitk.ReadImage(p)
+                slice_arr = sitk.GetArrayFromImage(img)
+                if slice_arr.ndim == 2:
+                    slice_arr = slice_arr[np.newaxis, ...]
+                slices.append({
+                    "path": p,
+                    "arr": slice_arr,
+                    "spacing": img.GetSpacing(),
+                    "origin": img.GetOrigin(),
+                    "direction": img.GetDirection(),
+                    "z": _dicom_slice_position(img),
+                    "inst": _dicom_instance_number(img),
+                    "step": _dicom_float_tag(img, "0018|0088"),   # SpacingBetweenSlices
+                    "thickness": _dicom_float_tag(img, "0018|0050"),
+                })
+
+            # Sort by acquisition order; only rely on a tag when every slice
+            # carries it so a missing tag can never crash the sort.
+            zs = [s["z"] for s in slices]
+            insts = [s["inst"] for s in slices]
+            if all(z is not None for z in zs):
+                slices.sort(key=lambda s: s["z"])
+            elif all(v is not None for v in insts):
+                slices.sort(key=lambda s: s["inst"])
+            else:
+                slices.sort(key=lambda s: os.path.basename(s["path"]))
+
+            # Slice spacing from consecutive positions, else from the
+            # SpacingBetweenSlices/SliceThickness tags, else 1.0.
+            z_step = None
+            valid_zs = sorted(z for z in zs if z is not None)
+            if len(valid_zs) >= 2:
+                diffs = np.diff(np.asarray(valid_zs, dtype=float))
+                diffs = diffs[diffs > 1e-6]
+                if diffs.size:
+                    z_step = float(np.median(diffs))
+            if z_step is None:
+                z_step = next(
+                    (s["step"] or s["thickness"] for s in slices
+                     if s["step"] or s["thickness"]),
+                    1.0,
+                )
+
+            try:
+                arr = np.concatenate([s["arr"] for s in slices], axis=0)
+            except ValueError:
+                raise RuntimeError(
+                    "DICOM slices have inconsistent image sizes; "
+                    "make sure all selected .dcm files belong to one series."
+                )
+            spacing = slices[0]["spacing"]
+            origin = slices[0]["origin"]
+            direction = slices[0]["direction"]
+            if len(spacing) >= 3:
+                spacing = (spacing[0], spacing[1], z_step)
+
+        if arr.ndim == 2:  # single-slice DICOM -> volume with depth 1
+            arr = arr[np.newaxis, ...]
+
+        # Normalise 2D metadata to 3D so downstream 3D code keeps working
+        if len(spacing) == 2:
+            spacing = (spacing[0], spacing[1], 1.0)
+        if len(origin) == 2:
+            origin = (origin[0], origin[1], 0.0)
+        if len(direction) == 4:
+            direction = (direction[0], direction[1], 0.0,
+                         direction[2], direction[3], 0.0,
+                         0.0, 0.0, 1.0)
+
+        return arr, spacing, origin, direction
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+@app.post("/api/upload")
+async def upload_file(files: List[UploadFile] = File(...), session_id: str = "default"):
+    if not files:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+
+    first_name = (files[0].filename or "").lower()
+
+    # DICOM series: one or many .dcm files
+    if first_name.endswith(".dcm"):
+        dcm_files = [f for f in files if (f.filename or "").lower().endswith(".dcm")]
+        if not dcm_files:
+            raise HTTPException(status_code=400, detail="No DICOM (.dcm) files provided.")
+        try:
+            arr, spacing, origin, direction = await _load_dicom_series(dcm_files)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to read DICOM series: {e}",
+            )
+        original_name = files[0].filename
     else:
-        raise HTTPException(status_code=400, detail="Please upload a .nii, .nii.gz, .jpg, .jpeg or .png file.")
+        file = files[0]
+        content = await file.read()
+        filename = first_name
+        original_name = file.filename
+
+        if filename.endswith((".nii", ".nii.gz")):
+            tmp = tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False)
+            tmp.write(content)
+            tmp.close()
+            arr, spacing, origin, direction = load_nifti(tmp.name)
+            os.unlink(tmp.name)
+        elif filename.endswith((".jpg", ".jpeg", ".png")):
+            # 2D raster image: load as grayscale and treat as a single-slice
+            # volume so the rest of the 3D pipeline works unchanged.
+            img = Image.open(io.BytesIO(content)).convert("L")
+            arr = np.asarray(img, dtype=np.uint8)[np.newaxis, ...]
+            spacing = (1.0, 1.0, 1.0)
+            origin = (0.0, 0.0, 0.0)
+            direction = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        else:
+            raise HTTPException(status_code=400, detail="Please upload a .nii, .nii.gz, .dcm, .jpg, .jpeg or .png file.")
 
     volumes[session_id] = {
         "array": arr,
@@ -283,7 +462,7 @@ async def upload_file(file: UploadFile = File(...), session_id: str = "default")
         "origin": origin,
         "direction": direction,
         "mask": np.zeros_like(arr, dtype=np.uint8),
-        "filename": file.filename,
+        "filename": original_name,
         "landmarks": {},
         "label_colormap": {},
     }
@@ -292,7 +471,7 @@ async def upload_file(file: UploadFile = File(...), session_id: str = "default")
         "status": "ok",
         "shape": list(arr.shape),
         "spacing": list(spacing),
-        "filename": file.filename,
+        "filename": original_name,
     }
 
 @app.get("/api/volume")
@@ -711,10 +890,46 @@ async def analyze_radiomics(req: RadiomicsRequest = RadiomicsRequest()):
         return {
             "status": "success",
             "biomarkers": biomarkers,
+            "biomarker_rows": biomarker_rows(biomarkers),
             "diagnoses": diagnoses
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Radiomics analysis failed: {str(e)}")
+
+# ----------------------------------------------------------------------
+# Organ Volume Measurement (standalone feature - no model inference)
+# ----------------------------------------------------------------------
+@app.post("/api/radiomics/volumes")
+async def measure_organ_volumes(req: RadiomicsRequest = RadiomicsRequest()):
+    vol = get_session(req.session_id)
+
+    if vol.get("array") is None:
+        raise HTTPException(status_code=400, detail="No volume loaded. Please upload a CT scan.")
+
+    if vol.get("mask") is None or np.sum(vol["mask"]) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No segmentation mask found. Please run AI Segmentation first."
+        )
+
+    try:
+        engine = RadiomicsEngine(vol)
+        organ_volumes = engine.extract_organ_volumes()
+        if not organ_volumes:
+            raise HTTPException(
+                status_code=400,
+                detail="No segmented organs found in the mask. Please run AI Segmentation first."
+            )
+
+        return {
+            "status": "success",
+            "organ_volumes": organ_volumes,
+            "total_cm3": round(sum(v["vol_cm3"] for v in organ_volumes), 2),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Volume measurement failed: {str(e)}")
 
 # ----------------------------------------------------------------------
 # AI Report Endpoint

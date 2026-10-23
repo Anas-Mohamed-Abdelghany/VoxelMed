@@ -232,6 +232,34 @@ const useStore = create((set, get) => ({
   setIsRadiomicsLoading: (loading) => set({ isRadiomicsLoading: loading }),
   setRadiomicsError: (error) => set({ radiomicsError: error }),
 
+  // Organ volume measurement state (standalone feature, no model)
+  organVolumes: null,
+  isVolumesLoading: false,
+  volumesError: null,
+
+  setOrganVolumes: (data) => set({ organVolumes: data }),
+  setIsVolumesLoading: (loading) => set({ isVolumesLoading: loading }),
+  setVolumesError: (error) => set({ volumesError: error }),
+
+  // Clear every analysis result. Called when a new file is uploaded: the
+  // backend resets the session (fresh mask, no landmarks), so the UI must
+  // not keep results from the previous scan.
+  resetAnalysisState: () =>
+    set({
+      radiomicsData: null,
+      isRadiomicsLoading: false,
+      radiomicsError: null,
+      organVolumes: null,
+      isVolumesLoading: false,
+      volumesError: null,
+      segmentationActive: false,
+      segmentationLabels: {},
+      landmarkPositions: {},
+      activeLandmark: null,
+      measurements: [],
+      aiMessages: [],
+    }),
+
 }));
 
 export default useStore;

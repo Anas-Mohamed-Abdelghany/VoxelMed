@@ -4,22 +4,24 @@ import { uploadFile, getVolumeInfo } from '../api/client';
 
 export default function LandingScreen() {
   const fileRef = useRef();
-  const { setVolumeLoaded, setVolumeInfo, setLoading, setError } = useStore();
+  const { setVolumeLoaded, setVolumeInfo, setLoading, setError, resetAnalysisState } = useStore();
 
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setLoading(true);
     setError(null);
     try {
-      await uploadFile(file);
+      await uploadFile(files);
       const info = await getVolumeInfo();
       setVolumeInfo(info);
       setVolumeLoaded(true);
+      resetAnalysisState(); // new scan: drop results from the previous one
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to load file');
+      setError(err.message || 'Failed to load file');
     } finally {
       setLoading(false);
+      e.target.value = '';
     }
   };
 
@@ -42,8 +44,8 @@ export default function LandingScreen() {
         >
           Open NIfTI / DICOM / Image File
         </button>
-        <input ref={fileRef} type="file" accept=".nii,.nii.gz,.dcm,.jpg,.jpeg,.png" className="hidden" onChange={handleUpload} />
-        <p className="text-med-text-dim text-xs">Supports .nii, .nii.gz, DICOM series, .jpg and .png</p>
+        <input ref={fileRef} type="file" multiple accept=".nii,.nii.gz,.dcm,.jpg,.jpeg,.png" className="hidden" onChange={handleUpload} />
+        <p className="text-med-text-dim text-xs">Supports .nii, .nii.gz, DICOM series (select all .dcm slices), .jpg and .png</p>
       </div>
     </div>
   );

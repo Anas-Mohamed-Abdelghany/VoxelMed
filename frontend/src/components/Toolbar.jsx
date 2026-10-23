@@ -8,6 +8,7 @@ export default function Toolbar() {
     setVolumeInfo,
     setLoading,
     setError,
+    resetAnalysisState,
     volumeInfo,
     toggleSidebar,
     sidebarOpen,
@@ -18,18 +19,19 @@ export default function Toolbar() {
   const [processing, setProcessing] = useState(false);
 
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setLoading(true);
     setError(null);
     try {
-      await uploadFile(file);
+      await uploadFile(files);
       const info = await getVolumeInfo();
       setVolumeInfo(info);
       setVolumeLoaded(true);
       setIsRestored(false);
+      resetAnalysisState(); // new scan: drop results from the previous one
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to upload volume');
+      setError(err.message || 'Failed to upload volume');
     } finally {
       setLoading(false);
       e.target.value = '';
@@ -89,6 +91,7 @@ export default function Toolbar() {
         <input
           ref={fileRef}
           type="file"
+          multiple
           accept=".nii,.nii.gz,.dcm,.jpg,.jpeg,.png"
           className="hidden"
           onChange={handleUpload}

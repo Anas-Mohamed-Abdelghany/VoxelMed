@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import useStore from '../store/useStore';
 import { askAIReportStream, getSliceAsBase64, getMontageAsBase64 } from '../api/client';
 import { buildOrganMatcher, buildMarkdownComponents } from '../utils/organBadges';
+import renderMathish from '../utils/mathLite';
 
 export default function AIReport() {
   const { aiMessages, setAiMessages, currentSlice, windowCenter, windowWidth, volumeInfo, landmarkPositions, navigateToLandmark, viewSettings } = useStore();
@@ -225,7 +226,7 @@ export default function AIReport() {
               )}
               {msg.role === 'assistant' ? (
                 <div className="ai-markdown leading-relaxed">
-                  <ReactMarkdown components={mdComponents}>{text}</ReactMarkdown>
+                  <ReactMarkdown components={mdComponents}>{renderMathish(text)}</ReactMarkdown>
                 </div>
               ) : (
                 <div className="whitespace-pre-wrap leading-relaxed">{text}</div>
@@ -250,7 +251,7 @@ export default function AIReport() {
           <div className="flex justify-start">
             <div className="max-w-[95%] rounded-lg px-2.5 py-1.5 bg-[#1a1a28] text-med-text border border-med-border">
               <div className="ai-markdown leading-relaxed">
-                <ReactMarkdown components={mdComponents}>{streamingText}</ReactMarkdown>
+                <ReactMarkdown components={mdComponents}>{renderMathish(streamingText)}</ReactMarkdown>
               </div>
               <span className="inline-block w-1.5 h-3.5 bg-med-accent animate-pulse ml-0.5 align-middle" />
             </div>

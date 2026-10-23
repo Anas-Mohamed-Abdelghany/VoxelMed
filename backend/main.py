@@ -21,7 +21,19 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from backend.radiomics_engine import RadiomicsEngine
+# --- Import bootstrap -------------------------------------------------------
+# Make `backend.*` imports work regardless of launch directory:
+#   - from repo root:  uvicorn backend.main:app
+#   - from backend/:   uvicorn main:app   (used by start.sh / --reload)
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_BACKEND_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+try:
+    from backend.radiomics_engine import RadiomicsEngine
+except ModuleNotFoundError:  # running with backend/ itself on sys.path
+    from radiomics_engine import RadiomicsEngine
 
 load_dotenv()
 
@@ -324,6 +336,35 @@ async def get_volume_data(session_id: str = "default"):
         "mask": mask_b64,
         "dims": dims,
         "spacing": list(vol["spacing"]),
+        "label_colormap": {str(k): list(v) for k, v in vol.get("label_colormap", {}).items()},
+        "organ_to_label": vol.get("organ_to_label", {}),
+    }
+
+@app.get("/api/segmentation/mask3d")
+async def get_mask_3d(session_id: str = "default"):
+    """Segmentation mask + label mapping for the 3D volume renderer.
+
+    Used to refresh the 3D mask AFTER segmentation runs without re-downloading
+    the whole CT volume. Applies the exact same downsampling as /api/volume/data
+    so the mask stays voxel-aligned with the already-loaded 3D texture.
+    """
+    vol = get_session(session_id)
+    arr = vol["array"]
+    mask = vol.get("mask", None)
+    if mask is None:
+        return {"mask": "", "label_colormap": {}, "organ_to_label": {}}
+
+    target_voxels = 128 * 128 * 128
+    current_voxels = arr.size
+    factor = (target_voxels / current_voxels) ** (1.0 / 3.0) if current_voxels > target_voxels else 1.0
+    mask_3d = ndzoom(mask, factor, order=0) if factor < 1.0 else mask
+
+    mask_b64 = ""
+    if np.any(mask_3d > 0):
+        mask_b64 = base64.b64encode(mask_3d.astype(np.uint8).tobytes()).decode("utf-8")
+
+    return {
+        "mask": mask_b64,
         "label_colormap": {str(k): list(v) for k, v in vol.get("label_colormap", {}).items()},
         "organ_to_label": vol.get("organ_to_label", {}),
     }

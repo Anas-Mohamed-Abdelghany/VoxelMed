@@ -172,14 +172,16 @@ const useStore = create((set, get) => ({
         ? s.selectedOrgans.filter((o) => o !== organ)
         : [...s.selectedOrgans, organ],
     })),
+  // All 117 TotalSegmentator `total` task classes (exact output-file stems,
+  // must stay in sync with backend/segmentation_config.json)
   selectAllOrgans: () =>
     set(() => ({
       selectedOrgans: [
-        'skull', 'clavicula', 'scapula', 'humerus', 'vertebrae_C1-7', 'sternum', 'rib_1-12', 'vertebrae_T1-12', 'vertebrae_L1-5', 'costal_cartilages', 'ulna', 'radius', 'intervertebral_discs', 'hip', 'sacrum', 'carpal', 'metacarpal', 'phalanges_hand', 'femur', 'patella', 'fibula', 'tibia', 'tarsal', 'metatarsal', 'phalanges_foot',
+        'skull', 'sacrum', 'vertebrae_S1', 'vertebrae_L5', 'vertebrae_L4', 'vertebrae_L3', 'vertebrae_L2', 'vertebrae_L1', 'vertebrae_T12', 'vertebrae_T11', 'vertebrae_T10', 'vertebrae_T9', 'vertebrae_T8', 'vertebrae_T7', 'vertebrae_T6', 'vertebrae_T5', 'vertebrae_T4', 'vertebrae_T3', 'vertebrae_T2', 'vertebrae_T1', 'vertebrae_C7', 'vertebrae_C6', 'vertebrae_C5', 'vertebrae_C4', 'vertebrae_C3', 'vertebrae_C2', 'vertebrae_C1', 'rib_left_1', 'rib_left_2', 'rib_left_3', 'rib_left_4', 'rib_left_5', 'rib_left_6', 'rib_left_7', 'rib_left_8', 'rib_left_9', 'rib_left_10', 'rib_left_11', 'rib_left_12', 'rib_right_1', 'rib_right_2', 'rib_right_3', 'rib_right_4', 'rib_right_5', 'rib_right_6', 'rib_right_7', 'rib_right_8', 'rib_right_9', 'rib_right_10', 'rib_right_11', 'rib_right_12', 'sternum', 'costal_cartilages', 'scapula_left', 'scapula_right', 'clavicula_left', 'clavicula_right', 'humerus_left', 'humerus_right', 'femur_left', 'femur_right', 'hip_left', 'hip_right',
         'esophagus', 'stomach', 'duodenum', 'small_bowel', 'colon', 'urinary_bladder',
-        'common_carotid_artery', 'subclavian_artery', 'brachiocephalic_trunk', 'superior_vena_cava', 'aorta', 'right_atrium', 'right_ventricle', 'portal_vein', 'iliac_artery', 'iliac_vein', 'brachiocephalic_vein_left', 'pulmonary_artery', 'atrial_appendage', 'left_ventricle', 'myocardium', 'left_atrium', 'splenic_vein', 'inferior_vena_cava',
-        'brain', 'spinal_cord', 'thyroid_gland', 'trachea', 'lung_upper_lobe', 'lung_middle_lobe', 'lung_lower_lobe', 'adrenal_gland', 'spleen', 'liver', 'gallbladder', 'kidney', 'pancreas', 'prostate',
-        'supraspinatus_infraspinatus', 'subscapularis', 'deltoid', 'pectoralis_minor', 'coracobrachial', 'teres_major', 'serratus_anterior', 'autochthon', 'triceps_brachii', 'iliopsoas', 'gluteus_minimus', 'gluteus_medius', 'gluteus_maximus', 'thigh_medial_compartment', 'sartorius', 'quadriceps_femoris', 'thigh_posterior_compartment', 'trapezius',
+        'heart', 'aorta', 'pulmonary_vein', 'brachiocephalic_trunk', 'subclavian_artery_left', 'subclavian_artery_right', 'common_carotid_artery_left', 'common_carotid_artery_right', 'brachiocephalic_vein_left', 'brachiocephalic_vein_right', 'atrial_appendage_left', 'superior_vena_cava', 'inferior_vena_cava', 'portal_vein_and_splenic_vein', 'iliac_artery_left', 'iliac_artery_right', 'iliac_vena_left', 'iliac_vena_right',
+        'brain', 'spinal_cord', 'thyroid_gland', 'trachea', 'lung_upper_lobe_left', 'lung_upper_lobe_right', 'lung_middle_lobe_right', 'lung_lower_lobe_left', 'lung_lower_lobe_right', 'adrenal_gland_left', 'adrenal_gland_right', 'spleen', 'liver', 'gallbladder', 'kidney_left', 'kidney_right', 'kidney_cyst_left', 'kidney_cyst_right', 'pancreas', 'prostate',
+        'gluteus_maximus_left', 'gluteus_maximus_right', 'gluteus_medius_left', 'gluteus_medius_right', 'gluteus_minimus_left', 'gluteus_minimus_right', 'autochthon_left', 'autochthon_right', 'iliopsoas_left', 'iliopsoas_right',
       ],
     })),
   deselectAllOrgans: () => set({ selectedOrgans: [] }),

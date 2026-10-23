@@ -2,7 +2,7 @@ import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
-import { getVolumeData } from '../api/client';
+import { getVolumeData, getSegmentationMask3D } from '../api/client';
 import useStore from '../store/useStore';
 
 // ---------------------------------------------------------------------------
@@ -137,12 +137,11 @@ const fragmentShader = `
           vec2 lutUV = vec2((label + 0.5) / 256.0, 0.5);
           vec4 labelColor = texture(u_lut, lutUV);
 
-          // Determine opacity: selected organ uses organOpacity, rest uses backgroundOpacity
+          // Determine opacity: selected organ uses organOpacity, everything else
+          // ("rest of volume") uses backgroundOpacity — even when no organ is
+          // selected, in which case the whole volume is the "rest".
           float opacityMult = u_backgroundOpacity;
-          if (u_selectedLabel < 0.5) {
-            // No organ selected — all organs at full opacity
-            opacityMult = 1.0;
-          } else if (abs(label - u_selectedLabel) < 0.5) {
+          if (u_selectedLabel > 0.5 && abs(label - u_selectedLabel) < 0.5) {
             opacityMult = u_organOpacity;
           }
 
@@ -161,10 +160,8 @@ const fragmentShader = `
 
       // --- Intensity-based fallback (unlabeled tissue) ---
       if (val > u_threshold) {
-        float fallbackAlpha = 1.0;
-        if (u_selectedLabel > 0.5) {
-          fallbackAlpha = u_backgroundOpacity;
-        }
+        // Unlabeled tissue always counts as "rest of volume"
+        float fallbackAlpha = u_backgroundOpacity;
         vec4 sampleCol = getTissueColor(val);
         if (sampleCol.a > 0.01 && fallbackAlpha > 0.01) {
           vec3 N = computeNormal(uvw);
@@ -383,7 +380,7 @@ function SpinControls() {
 }
 
 export default function VolumeRenderer() {
-  const { volumeInfo } = useStore();
+  const { volumeInfo, segmentationActive, landmarkPositions } = useStore();
   const [volumeData, setVolumeData] = useState(null);
   const [maskData, setMaskData] = useState(null);
   const [labelColormap, setLabelColormap] = useState(null);
@@ -436,6 +433,35 @@ export default function VolumeRenderer() {
     fetchVolume();
     return () => { active = false; };
   }, [volumeInfo]);
+
+  // Refresh mask + label mapping after AI segmentation runs. The initial
+  // volume fetch usually predates segmentation, which left the 3D mask stale
+  // (empty labels -> organ selection / opacity controls had nothing to act on).
+  // This fetches ONLY the mask (voxel-aligned via the same downsampling as
+  // /api/volume/data) instead of re-downloading the whole CT volume.
+  useEffect(() => {
+    if (!segmentationActive) return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await getSegmentationMask3D();
+        if (!active || !res) return;
+        if (res.mask) {
+          const binary = atob(res.mask);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          setMaskData(bytes);
+        } else {
+          setMaskData(null);
+        }
+        setLabelColormap(res.label_colormap || {});
+        setOrganToLabel(res.organ_to_label || {});
+      } catch (err) {
+        console.error('Failed to refresh 3D segmentation mask:', err);
+      }
+    })();
+    return () => { active = false; };
+  }, [segmentationActive, landmarkPositions]);
 
   return (
     <div className="w-full h-full relative bg-[#040508]">

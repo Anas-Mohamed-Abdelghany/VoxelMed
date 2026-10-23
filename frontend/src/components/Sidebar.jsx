@@ -12,7 +12,7 @@ const TISSUE_PRESETS = [
   { id: 'bone', label: 'Bone' },
 ];
 
-const TISSUE_THRESHOLDS = { all: 0.12, skin: 0.05, soft: 0.22, bone: 0.70 };
+const TISSUE_THRESHOLDS = { all: 0.0, skin: 0.10, soft: 0.55, bone: 0.85 };
 
 export default function Sidebar({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('Main');

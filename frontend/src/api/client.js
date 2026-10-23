@@ -68,6 +68,11 @@ export async function getVolumeData() {
   return apiFetch('/volume/data');
 }
 
+// Mask + label mapping only (refreshes 3D segmentation without re-fetching the CT volume)
+export async function getSegmentationMask3D() {
+  return apiFetch('/segmentation/mask3d');
+}
+
 export async function getMontageAsBase64(view, windowCenter, windowWidth) {
   const params = new URLSearchParams({
     window_center: windowCenter,

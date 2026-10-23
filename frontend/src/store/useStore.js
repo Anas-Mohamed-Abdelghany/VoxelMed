@@ -219,6 +219,17 @@ const useStore = create((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setAiMessages: (msgs) => set({ aiMessages: msgs }),
+
+
+  // Radiomics state
+  radiomicsData: null,
+  isRadiomicsLoading: false,
+  radiomicsError: null,
+
+  setRadiomicsData: (data) => set({ radiomicsData: data }),
+  setIsRadiomicsLoading: (loading) => set({ isRadiomicsLoading: loading }),
+  setRadiomicsError: (error) => set({ radiomicsError: error }),
+
 }));
 
 export default useStore;

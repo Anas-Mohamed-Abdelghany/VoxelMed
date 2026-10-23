@@ -19,35 +19,71 @@ class ImageProcessingMixin:
     def load_image(self):
         from PyQt5.QtWidgets import QFileDialog
         file_name, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "", "Image Files (*.nii *.nii.gz)"
+            self, "Open Image", "",
+            "Image Files (*.nii *.nii.gz *.jpg *.jpeg *.png)"
         )
-        if file_name:
-            image = sitk.ReadImage(file_name)
-            self.image_array = sitk.GetArrayFromImage(image)
+        if not file_name:
+            return
 
-            if self.image_array is not None and self.image_array.size > 0:
-                for i in range(3):
-                    self.image_labels[i].clear()
+        if file_name.lower().endswith((".jpg", ".jpeg", ".png")):
+            # 2D raster image: convert to a single-slice NIfTI volume so the
+            # rest of the viewer (which expects a 3D array) works unchanged.
+            try:
+                import os
+                import tempfile
+                from PyQt5.QtWidgets import QApplication
 
-                self.notification_label.setText("Image loaded successfully.")
-                self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
-                self.spacing = image.GetSpacing()
-                self.caliper_lines = [None, None, None]
-                self._reset_motion_restoration()
+                self.notification_label.setText("Converting image to volume...")
+                self.notification_label.setStyleSheet("color: blue; font-size: 14px;")
+                QApplication.processEvents()
 
-                self.update_image_slices()
-                self.render_3d_volume()
-                self.current_nifti_path = file_name
-                self._reset_ai_segmentation_ui()
-                self.show_settings_page()
-            else:
-                self.segmentation_mask = None
-                self.spacing = (1.0, 1.0, 1.0)
-                self.caliper_lines = [None, None, None]
-                self.notification_label.setText(
-                    "Error: Image data is invalid or could not be loaded."
+                arr = sitk.GetArrayFromImage(sitk.ReadImage(file_name))
+                if arr.ndim == 3:  # colour image -> grayscale
+                    if arr.shape[2] == 4:
+                        arr = cv2.cvtColor(arr, cv2.COLOR_RGBA2GRAY)
+                    elif arr.shape[2] == 3:
+                        arr = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+                    else:
+                        arr = arr[..., 0]
+                volume = arr[np.newaxis, ...]  # (1, H, W) single-slice volume
+
+                temp_path = os.path.join(
+                    tempfile.gettempdir(), "temp_converted_raster.nii.gz"
                 )
-                print("Error: Image data is invalid or could not be loaded.")
+                sitk.WriteImage(sitk.GetImageFromArray(volume), temp_path)
+                self.load_nifti(temp_path)
+                return
+            except Exception as e:
+                self.notification_label.setText(f"Error loading image: {str(e)}")
+                self.notification_label.setStyleSheet("color: red; font-size: 14px;")
+                return
+
+        image = sitk.ReadImage(file_name)
+        self.image_array = sitk.GetArrayFromImage(image)
+
+        if self.image_array is not None and self.image_array.size > 0:
+            for i in range(3):
+                self.image_labels[i].clear()
+
+            self.notification_label.setText("Image loaded successfully.")
+            self.segmentation_mask = np.zeros_like(self.image_array, dtype=np.uint8)
+            self.spacing = image.GetSpacing()
+            self.caliper_lines = [None, None, None]
+            self._reset_motion_restoration()
+
+            self.update_image_slices()
+            self.render_3d_volume()
+            self.current_nifti_path = file_name
+            self._reset_ai_segmentation_ui()
+            self.show_settings_page()
+        else:
+            self.segmentation_mask = None
+            self.spacing = (1.0, 1.0, 1.0)
+            self.caliper_lines = [None, None, None]
+            self.notification_label.setText(
+                "Error: Image data is invalid or could not be loaded."
+            )
+            print("Error: Image data is invalid or could not be loaded.")
 
     def load_nifti(self, nifti_path):
         try:

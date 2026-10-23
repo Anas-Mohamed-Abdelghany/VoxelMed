@@ -193,6 +193,8 @@ VoxelMed/
 |--------|------------|------|-------|
 | NIfTI | `.nii`, `.nii.gz` | Yes | Yes |
 | DICOM | Series of `.dcm` | Yes | No |
+| PNG | `.png` (loaded as single-slice volume) | Yes | No |
+| JPEG | `.jpg`, `.jpeg` (loaded as single-slice volume) | Yes | No |
 | PNG | Base64 encoded | Generated for API | N/A |
 
 ---

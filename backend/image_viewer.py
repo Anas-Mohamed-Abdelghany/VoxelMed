@@ -103,9 +103,9 @@ class ImageViewer(
         self._lab_volume_mapper = None
         self._lab_volume = None
         self._lab_volume_property = None
-            self._lab_ctf = None
-            self._lab_otf = None
-            self._lab_clip_planes = {}
+        self._lab_ctf = None
+        self._lab_otf = None
+        self._lab_clip_planes = {}
         self._lab_clip_enabled = {"x": False, "y": False, "z": False}
         self._lab_clip_flipped = {"x": False, "y": False, "z": False}
         self._lab_bounds = None

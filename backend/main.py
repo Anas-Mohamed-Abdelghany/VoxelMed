@@ -21,6 +21,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+from backend.radiomics_engine import RadiomicsEngine
+
 load_dotenv()
 
 app = FastAPI(title="VoxelMed API")
@@ -152,6 +154,10 @@ class MeasureRequest(BaseModel):
     point1: List[int]
     point2: List[int]
 
+class RadiomicsRequest(BaseModel):
+    patient_height_m: float = 1.75
+    session_id: str = "default"
+
 # ----------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------
@@ -196,7 +202,6 @@ def find_totalsegmentator_executable():
             return c
     return None
 
-# --- Enhanced Smart Brush (snaps strictly to local tissue edges) ---
 def enhanced_smart_brush(target_slice, ref_slice, center_x, center_y, radius, label_val):
     h, w = ref_slice.shape[:2]
     cx, cy = int(round(center_x)), int(round(center_y))
@@ -247,8 +252,16 @@ async def upload_file(file: UploadFile = File(...), session_id: str = "default")
         tmp.close()
         arr, spacing, origin, direction = load_nifti(tmp.name)
         os.unlink(tmp.name)
+    elif filename.endswith((".jpg", ".jpeg", ".png")):
+        # 2D raster image: load as grayscale and treat as a single-slice
+        # volume so the rest of the 3D pipeline works unchanged.
+        img = Image.open(io.BytesIO(content)).convert("L")
+        arr = np.asarray(img, dtype=np.uint8)[np.newaxis, ...]
+        spacing = (1.0, 1.0, 1.0)
+        origin = (0.0, 0.0, 0.0)
+        direction = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     else:
-        raise HTTPException(status_code=400, detail="Please upload a .nii or .nii.gz volume.")
+        raise HTTPException(status_code=400, detail="Please upload a .nii, .nii.gz, .jpg, .jpeg or .png file.")
 
     volumes[session_id] = {
         "array": arr,
@@ -352,14 +365,12 @@ async def get_montage_base64(
     axis = 0 if view == "axial" else 2 if view == "sagittal" else 1
     num_slices = arr.shape[axis]
 
-    # Pick evenly-spaced slices, cap at 20 for high-quality tiles
     max_tiles = 20
     if num_slices <= max_tiles:
         indices = list(range(num_slices))
     else:
         indices = [int(i * (num_slices - 1) / (max_tiles - 1)) for i in range(max_tiles)]
 
-    # Build slice images at full resolution
     slices = []
     for idx in indices:
         if view == "axial":
@@ -371,7 +382,6 @@ async def get_montage_base64(
         normalized = normalize_slice(slice_data.astype(np.float64), window_center, window_width)
         slices.append(Image.fromarray(normalized))
 
-    # Upscale each tile to 512px on longest side for AI clarity
     target_size = 512
     upscaled = []
     for img in slices:
@@ -382,7 +392,6 @@ async def get_montage_base64(
             img = img.resize((new_w, new_h), Image.NEAREST)
         upscaled.append(img)
 
-    # Grid layout
     n = len(upscaled)
     cols = int(np.ceil(np.sqrt(n)))
     rows = int(np.ceil(n / cols))
@@ -415,7 +424,6 @@ async def get_segmentation_slice_base64(view: str, slice_index: int, session_id:
         raise HTTPException(status_code=400, detail="Invalid view")
 
     h, w = slice_data.shape
-    # 4-Channel RGBA: alpha=0 for background so it NEVER darkens the CT scan
     color_img = np.zeros((h, w, 4), dtype=np.uint8)
     label_colormap = vol.get("label_colormap", {})
     for label_id in np.unique(slice_data):
@@ -451,7 +459,6 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
         tmp_vol = tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False)
         tmp_vol.close()
 
-        # Write clean NIfTI with voxel spacing
         sitk_img = sitk.GetImageFromArray(arr)
         sitk_img.SetSpacing(vol["spacing"])
         sitk_img.SetOrigin(vol["origin"])
@@ -461,12 +468,10 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
         out_dir = tempfile.mkdtemp(prefix="voxelmed_out_")
 
         env = os.environ.copy()
-        # Force clean CPU execution to bypass incompatible CUDA driver
         env["CUDA_VISIBLE_DEVICES"] = ""
         env["OMP_NUM_THREADS"] = "1"
         env["nnUNet_n_proc_DA"] = "1"
 
-        # Safe command without unrecognized flags
         cmd = [totalseg_exe, "-i", tmp_vol.name, "-o", out_dir, "--fast"]
 
         print(f"[VoxelMed] Executing: {' '.join(cmd)}")
@@ -475,7 +480,6 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
             print(f"[VoxelMed] Subprocess completed with exit code: {result.returncode}")
 
             if result.returncode == 0:
-                # Load TotalSegmentator NIfTI masks
                 config = {}
                 if os.path.exists(CONFIG_PATH):
                     with open(CONFIG_PATH) as f:
@@ -521,9 +525,6 @@ async def run_segmentation(req: Optional[SegmentRequest] = None, session_id: str
                 os.unlink(tmp_vol.name)
             shutil.rmtree(out_dir, ignore_errors=True)
 
-    # --- Automatic Fallback Segmentation ---
-    # If TotalSegmentator was missing, timed out, or downloading weights,
-    # generate accurate multi-tissue masks directly from the CT volume so the app never fails!
     if not seg_successful:
         print("[VoxelMed INFO] Running high-speed anatomical segmenter fallback...")
         norm_vol = normalize_slice(arr.astype(np.float64))
@@ -645,6 +646,38 @@ async def toggle_motion_restoration(session_id: str = "default"):
         vol["is_restored"] = True
         return {"status": "ok", "is_restored": True, "message": "Motion artifact restoration active"}
 
+# ----------------------------------------------------------------------
+# Radiomics & AI Biomarker Engine Endpoint
+# ----------------------------------------------------------------------
+@app.post("/api/radiomics/analyze")
+async def analyze_radiomics(req: RadiomicsRequest = RadiomicsRequest()):
+    vol = get_session(req.session_id)
+    
+    if vol.get("array") is None:
+        raise HTTPException(status_code=400, detail="No volume loaded. Please upload a CT scan.")
+    
+    if vol.get("mask") is None or np.sum(vol["mask"]) == 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="No segmentation mask found. Please run AI Segmentation first."
+        )
+
+    try:
+        engine = RadiomicsEngine(vol)
+        biomarkers = engine.extract_all_biomarkers(height_m=req.patient_height_m)
+        diagnoses = engine.predict_pathology(biomarkers)
+        
+        return {
+            "status": "success",
+            "biomarkers": biomarkers,
+            "diagnoses": diagnoses
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Radiomics analysis failed: {str(e)}")
+
+# ----------------------------------------------------------------------
+# AI Report Endpoint
+# ----------------------------------------------------------------------
 class AIReportRequest(BaseModel):
     messages: list
     model: str = "openrouter/free"

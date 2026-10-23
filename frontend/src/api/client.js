@@ -122,3 +122,15 @@ export async function askAIReportStream(messages, model = 'openrouter/free', onC
     onError(err.message);
   }
 }
+export async function runRadiomicsAnalysis(patientHeight = 1.75) {
+  const res = await fetch('/api/radiomics/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patient_height_m: patientHeight }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Analysis failed' }));
+    throw new Error(err.detail || 'Failed to extract radiomics');
+  }
+  return res.json();
+}

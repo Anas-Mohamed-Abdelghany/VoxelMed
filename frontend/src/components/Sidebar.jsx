@@ -3,6 +3,7 @@ import useStore from '../store/useStore';
 import AISegmentation from './AISegmentation';
 import LandmarkNav from './LandmarkNav';
 import AIReport from './AIReport';
+import RadiomicsPanel from './RadiomicsPanel';
 
 const TISSUE_PRESETS = [
   { id: 'all', label: 'All tissue' },
@@ -65,15 +66,19 @@ export default function Sidebar({ isOpen, onClose }) {
   };
 
   return (
-    <aside className={`
+    <aside
+      className={`
       w-[100vw] max-w-[320px] shrink-0 bg-med-panel border-r border-med-border flex flex-col h-full select-none text-med-text font-sans text-xs
       fixed md:relative inset-y-0 left-0 z-40
       transition-transform duration-200 ease-in-out
       ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-    `}>
+    `}
+    >
       {/* Mobile close button */}
       <div className="md:hidden flex items-center justify-between px-3 py-2 bg-med-dark/50 border-b border-med-border">
-        <span className="text-xs font-bold text-med-text-dim uppercase tracking-wider">Menu</span>
+        <span className="text-xs font-bold text-med-text-dim uppercase tracking-wider">
+          Menu
+        </span>
         <button
           onClick={onClose}
           className="w-7 h-7 flex items-center justify-center rounded hover:bg-med-accent/20 text-med-text-dim hover:text-med-accent transition-colors"
@@ -84,11 +89,13 @@ export default function Sidebar({ isOpen, onClose }) {
           </svg>
         </button>
       </div>
-      {/* 1. Tabs Header: Main | AI Segmentation | 3D Lab */}
-      <div className="flex bg-med-dark/50 border-b border-med-border">
+
+      {/* 1. Tabs Header: Main | Segmentation | Biomarkers | Report | 3D Lab */}
+      <div className="flex bg-med-dark/50 border-b border-med-border overflow-x-auto scrollbar-none">
         {[
           { id: 'Main', label: 'Main' },
-          { id: 'AI Segmentation', label: 'Segmentation' },
+          { id: 'AI Segmentation', label: 'Seg' },
+          { id: 'Biomarkers', label: 'Biomarkers' },
           { id: 'AI Report', label: 'Report' },
           { id: '3D Lab', label: '3D Lab' },
         ].map((tab) => {
@@ -97,7 +104,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2.5 text-center font-bold text-[11px] transition-colors ${
+              className={`flex-1 min-w-[58px] py-2.5 px-1 text-center font-bold text-[10.5px] transition-colors whitespace-nowrap ${
                 isActive
                   ? 'text-med-accent bg-med-panel border-b-2 border-med-accent'
                   : 'text-med-text-dim hover:text-med-text hover:bg-med-panel/40'
@@ -110,9 +117,13 @@ export default function Sidebar({ isOpen, onClose }) {
       </div>
 
       {/* 2. Scrollable Body */}
-      <div className={`flex-1 min-h-0 ${
-        activeTab === 'AI Report' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto p-3 space-y-3'
-      }`}>
+      <div
+        className={`flex-1 min-h-0 ${
+          activeTab === 'AI Report' || activeTab === 'Biomarkers'
+            ? 'overflow-hidden flex flex-col'
+            : 'overflow-y-auto p-3 space-y-3'
+        }`}
+      >
         {activeTab === 'Main' && (
           <>
             {/* Tool Selection Dropdown */}
@@ -314,6 +325,13 @@ export default function Sidebar({ isOpen, onClose }) {
           </div>
         )}
 
+        {/* AI Biomarkers & Radiomics Tab */}
+        {activeTab === 'Biomarkers' && (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <RadiomicsPanel />
+          </div>
+        )}
+
         {/* AI Report Tab */}
         {activeTab === 'AI Report' && (
           <div className="flex-1 min-h-0">
@@ -326,13 +344,19 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="space-y-3">
             <div>
               <h3 className="font-bold text-med-accent text-sm">3D Lab</h3>
-              <p className="text-med-text-dim text-[11px] mt-1">Cut, crop, and peel away layers to see inside the volume.</p>
+              <p className="text-med-text-dim text-[11px] mt-1">
+                Cut, crop, and peel away layers to see inside the volume.
+              </p>
             </div>
 
-            {/* 2. Orthogonal Clips */}
+            {/* Orthogonal Clips */}
             <div className="space-y-2">
-              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">Orthogonal Clips</h4>
-              <p className="text-med-text-dim text-[10px]">Slide to cut the volume along an axis. "Flip" swaps which half is removed.</p>
+              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">
+                Orthogonal Clips
+              </h4>
+              <p className="text-med-text-dim text-[10px]">
+                Slide to cut the volume along an axis. "Flip" swaps which half is removed.
+              </p>
 
               {[
                 { axis: 'clipX', label: 'Axis 1 (X)', color: '#ef4444' },
@@ -376,9 +400,11 @@ export default function Sidebar({ isOpen, onClose }) {
 
             <hr className="border-med-border/80" />
 
-            {/* 3. AI Segmentation (Opacity) */}
+            {/* AI Segmentation (Opacity) */}
             <div className="space-y-2">
-              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">AI Segmentation</h4>
+              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">
+                AI Segmentation
+              </h4>
               <div className="space-y-1.5">
                 <label className="text-[11px] text-med-text-dim">Organ:</label>
                 {segmentationActive && Object.keys(landmarkPositions).length > 0 ? (
@@ -430,10 +456,14 @@ export default function Sidebar({ isOpen, onClose }) {
 
             <hr className="border-med-border/80" />
 
-            {/* 4. Tissue Layers (intensity) */}
+            {/* Tissue Layers (intensity) */}
             <div className="space-y-2">
-              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">Tissue Layers</h4>
-              <p className="text-med-text-dim text-[10px]">Peel back low-density tissue (skin/fat) to reveal denser structures (organs/bone).</p>
+              <h4 className="text-[11px] font-bold text-med-text uppercase tracking-wider">
+                Tissue Layers
+              </h4>
+              <p className="text-med-text-dim text-[10px]">
+                Peel back low-density tissue (skin/fat) to reveal denser structures (organs/bone).
+              </p>
 
               <div className="space-y-1">
                 {TISSUE_PRESETS.map((preset) => (

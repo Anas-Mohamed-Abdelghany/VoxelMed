@@ -40,10 +40,10 @@ export default function LandingScreen() {
           onClick={() => fileRef.current?.click()}
           className="w-full md:w-auto px-6 py-3 bg-med-accent hover:bg-med-accent-hover rounded-lg font-medium transition-colors"
         >
-          Open NIfTI / DICOM File
+          Open NIfTI / DICOM / Image File
         </button>
-        <input ref={fileRef} type="file" accept=".nii,.nii.gz,.dcm" className="hidden" onChange={handleUpload} />
-        <p className="text-med-text-dim text-xs">Supports .nii, .nii.gz, and DICOM series</p>
+        <input ref={fileRef} type="file" accept=".nii,.nii.gz,.dcm,.jpg,.jpeg,.png" className="hidden" onChange={handleUpload} />
+        <p className="text-med-text-dim text-xs">Supports .nii, .nii.gz, DICOM series, .jpg and .png</p>
       </div>
     </div>
   );

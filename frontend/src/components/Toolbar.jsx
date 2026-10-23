@@ -89,7 +89,7 @@ export default function Toolbar() {
         <input
           ref={fileRef}
           type="file"
-          accept=".nii,.nii.gz,.dcm"
+          accept=".nii,.nii.gz,.dcm,.jpg,.jpeg,.png"
           className="hidden"
           onChange={handleUpload}
         />

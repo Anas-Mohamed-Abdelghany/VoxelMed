@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import useStore from '../store/useStore';
 import { askAIReportStream, getSliceAsBase64, getMontageAsBase64 } from '../api/client';
+import { buildOrganMatcher, buildMarkdownComponents } from '../utils/organBadges';
 
 export default function AIReport() {
-  const { aiMessages, setAiMessages, currentSlice, windowCenter, windowWidth, volumeInfo } = useStore();
+  const { aiMessages, setAiMessages, currentSlice, windowCenter, windowWidth, volumeInfo, landmarkPositions, navigateToLandmark, viewSettings } = useStore();
   const [input, setInput] = useState('');
   const [sliceMode, setSliceMode] = useState('all'); // 'own' | 'current' | 'all'
   const [attachedImages, setAttachedImages] = useState([]);
@@ -13,17 +14,57 @@ export default function AIReport() {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // Grounded organ badges: only organs with a real segmentation centroid
+  const organMatcher = useMemo(
+    () => buildOrganMatcher(landmarkPositions),
+    [landmarkPositions]
+  );
+  const mdComponents = useMemo(
+    () => buildMarkdownComponents(organMatcher, navigateToLandmark),
+    [organMatcher, navigateToLandmark]
+  );
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [aiMessages, streamingText]);
 
+  // Bake the per-view display rotation (e.g. 180° on sagittal/coronal) into the
+  // image so the AI receives exactly what's on screen, not the raw orientation.
+  const applyViewRotation = useCallback((dataUrl, degrees) => {
+    const rot = ((Math.round(degrees || 0) % 360) + 360) % 360;
+    if (rot === 0 || rot === 360) return Promise.resolve(dataUrl);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const swap = rot === 90 || rot === 270;
+          canvas.width = swap ? img.height : img.width;
+          canvas.height = swap ? img.width : img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((rot * Math.PI) / 180);
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }, []);
+
   const fetchSliceImage = useCallback(async (view, sliceIndex) => {
     try {
       const res = await getSliceAsBase64(view, sliceIndex, windowCenter, windowWidth);
-      if (res.image) return `data:image/png;base64,${res.image}`;
+      if (res.image) {
+        const url = `data:image/png;base64,${res.image}`;
+        return applyViewRotation(url, viewSettings[view]?.rotate);
+      }
     } catch {}
     return null;
-  }, [windowCenter, windowWidth]);
+  }, [windowCenter, windowWidth, viewSettings, applyViewRotation]);
 
   const fetchCurrentSlices = useCallback(async () => {
     const images = await Promise.all([
@@ -45,8 +86,12 @@ export default function AIReport() {
         try {
           const res = await getMontageAsBase64(v, windowCenter, windowWidth);
           if (res.image) {
+            const url = await applyViewRotation(
+              `data:image/png;base64,${res.image}`,
+              viewSettings[v]?.rotate
+            );
             return {
-              url: `data:image/png;base64,${res.image}`,
+              url,
               label: `${v.charAt(0).toUpperCase() + v.slice(1)} (${res.montage_slices} slices)`,
             };
           }
@@ -55,7 +100,7 @@ export default function AIReport() {
       })
     );
     return results.filter(Boolean);
-  }, [windowCenter, windowWidth]);
+  }, [windowCenter, windowWidth, viewSettings, applyViewRotation]);
 
   const handleFileSelect = useCallback((e) => {
     const files = Array.from(e.target.files || []);
@@ -73,15 +118,14 @@ export default function AIReport() {
     e.target.value = '';
   }, []);
 
-  const handleSend = useCallback(async (customPrompt, forceAllSlices = false) => {
+  const handleSend = useCallback(async (customPrompt) => {
     const text = customPrompt || input.trim();
     if (!text && attachedImages.length === 0) return;
     if (isLoading) return;
 
+    // Attach images according to the selected slice mode
     let images;
-    if (forceAllSlices) {
-      images = await fetchAllSlices();
-    } else if (sliceMode === 'own') {
+    if (sliceMode === 'own') {
       images = [];
     } else if (sliceMode === 'current') {
       images = await fetchCurrentSlices();
@@ -181,7 +225,7 @@ export default function AIReport() {
               )}
               {msg.role === 'assistant' ? (
                 <div className="ai-markdown leading-relaxed">
-                  <ReactMarkdown>{text}</ReactMarkdown>
+                  <ReactMarkdown components={mdComponents}>{text}</ReactMarkdown>
                 </div>
               ) : (
                 <div className="whitespace-pre-wrap leading-relaxed">{text}</div>
@@ -206,7 +250,7 @@ export default function AIReport() {
           <div className="flex justify-start">
             <div className="max-w-[95%] rounded-lg px-2.5 py-1.5 bg-[#1a1a28] text-med-text border border-med-border">
               <div className="ai-markdown leading-relaxed">
-                <ReactMarkdown>{streamingText}</ReactMarkdown>
+                <ReactMarkdown components={mdComponents}>{streamingText}</ReactMarkdown>
               </div>
               <span className="inline-block w-1.5 h-3.5 bg-med-accent animate-pulse ml-0.5 align-middle" />
             </div>
@@ -258,6 +302,11 @@ export default function AIReport() {
               ? '3 individual CT slices'
               : `All ${totalSlices} CT slices (montage)`}
         </p>
+        {organMatcher && (
+          <p className="text-[9px] text-amber-300/70 mt-1 text-center">
+            📍 {Object.keys(landmarkPositions).length} grounded landmarks — organ mentions in the report are clickable
+          </p>
+        )}
       </div>
 
       {/* Attached images preview */}
@@ -314,7 +363,8 @@ export default function AIReport() {
               {isLoading ? '...' : 'Send'}
             </button>
             <button
-              onClick={() => handleSend('Generate a comprehensive radiology report for this volume. Include findings, measurements, and any abnormalities detected.', true)}
+              onClick={() => handleSend('Generate a comprehensive radiology report for this volume. Include findings, measurements, and any abnormalities detected.')}
+              title={sliceMode === 'own' ? 'Report using only your uploaded images' : sliceMode === 'current' ? 'Report using the 3 current CT slices' : 'Report using the full slice montage'}
               disabled={isLoading}
               className="px-3 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] font-semibold rounded transition-colors disabled:opacity-30"
             >

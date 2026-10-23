@@ -362,6 +362,26 @@ function VolumeMesh({ volumeData, dims, spacing, maskData, labelColormap, organT
   );
 }
 
+// Brief auto-spin of the 3D volume when a grounded landmark jump occurs
+// (store.spinToken is bumped by navigateToLandmark).
+function SpinControls() {
+  const controlsRef = useRef();
+  const spinToken = useStore((s) => s.spinToken);
+  const spinUntilRef = useRef(0);
+
+  useEffect(() => {
+    if (spinToken > 0) spinUntilRef.current = performance.now() + 2800;
+  }, [spinToken]);
+
+  useFrame(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    controls.autoRotate = performance.now() < spinUntilRef.current;
+  });
+
+  return <OrbitControls ref={controlsRef} enableDamping dampingFactor={0.12} autoRotateSpeed={2.2} />;
+}
+
 export default function VolumeRenderer() {
   const { volumeInfo } = useStore();
   const [volumeData, setVolumeData] = useState(null);
@@ -445,7 +465,7 @@ export default function VolumeRenderer() {
             organToLabel={organToLabel}
           />
         )}
-        <OrbitControls enableDamping dampingFactor={0.12} />
+        <SpinControls />
         <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
           <GizmoViewport axisColors={['#ef4444', '#22c55e', '#3b82f6']} labelColor="#ffffff" />
         </GizmoHelper>

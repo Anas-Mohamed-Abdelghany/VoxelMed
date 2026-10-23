@@ -24,6 +24,11 @@ const useStore = create((set, get) => ({
   segmentationActive: false,
   segmentationLabels: {},
   landmarkPositions: {},
+  // Transient "landmark jump" state for grounded AI-report navigation:
+  // activeLandmark = { organ, position: [z, y, x], at } | null
+  activeLandmark: null,
+  // Bumped on every landmark jump so the 3D volume can trigger a spin
+  spinToken: 0,
   selectedOrgans: [],
   is3DMode: true,
   showCrosshair: true,
@@ -123,6 +128,44 @@ const useStore = create((set, get) => ({
 
   setSegmentationActive: (active) => set({ segmentationActive: active }),
   setLandmarkPositions: (positions) => set({ landmarkPositions: positions }),
+
+  // Grounded landmark navigation. Landmarks are stored as [z, y, x]
+  // == [axial, coronal, sagittal] slice indices (centroid of each segmented organ).
+  navigateToLandmark: async (organ) => {
+    const state = get();
+    const norm = (s) => String(s).toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+    const target = norm(organ);
+
+    // 1) Resolve against locally-known landmarks (from segmentation)
+    let key = Object.keys(state.landmarkPositions).find((k) => norm(k) === target);
+    let pos = key ? state.landmarkPositions[key] : null;
+
+    // 2) Fallback: ask the backend for this landmark's centroid
+    if (!pos) {
+      try {
+        const res = await fetch(`/api/landmarks/${encodeURIComponent(organ)}/navigate`, { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          pos = data.position;
+          key = data.organ || organ;
+        }
+      } catch {}
+    }
+    if (!Array.isArray(pos) || pos.length < 3) return false;
+
+    // 3) Center all three MPR crosshairs on the organ centroid
+    const [z, y, x] = pos;
+    state.setCurrentSliceForAll(z, x, y);
+
+    // 4) Flash the landmark + spin the 3D volume
+    const at = Date.now();
+    set({ activeLandmark: { organ: key || organ, position: pos, at }, spinToken: state.spinToken + 1 });
+    setTimeout(() => {
+      if (get().activeLandmark?.at === at) set({ activeLandmark: null });
+    }, 2600);
+    return true;
+  },
+
   toggleOrgan: (organ) =>
     set((s) => ({
       selectedOrgans: s.selectedOrgans.includes(organ)

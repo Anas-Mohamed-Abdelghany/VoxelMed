@@ -46,6 +46,7 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
     showCrosshair,
     measurements,
     addMeasurement,
+    activeLandmark,
   } = useStore();
 
   const sliceIndex = currentSlice[view] || 0;
@@ -247,6 +248,50 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
       ctx.restore();
     }
 
+    // 5b. Grounded landmark flash (AI report organ badge -> centroid jump)
+    if (activeLandmark?.position && volumeInfo?.shape) {
+      const [lz, ly, lx] = activeLandmark.position;
+      // Landmark is [z, y, x] == [axial, coronal, sagittal]; map to this view's axes
+      let hx0, hy0;
+      if (view === 'axial') { hx0 = lx; hy0 = ly; }
+      else if (view === 'sagittal') { hx0 = ly; hy0 = lz; }
+      else { hx0 = lx; hy0 = lz; }
+
+      const s = (maximizedView === view && sliceImg)
+        ? Math.min(canvas.width / sliceImg.width, canvas.height / sliceImg.height)
+        : 1;
+      const [hx, hy] = toCanvas(hx0, hy0);
+
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 14 * s, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 21 * s, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Organ label above the ring (counter-rotated so CSS 180° views stay upright)
+      const rot = ((viewSettings[view]?.rotate ?? 0) % 360 + 360) % 360;
+      const label = activeLandmark.organ.replace(/[_\s]+/g, ' ').toUpperCase();
+      ctx.save();
+      ctx.translate(hx, hy - 16 * s);
+      if (rot === 180) ctx.rotate(Math.PI);
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(-tw / 2 - 4, -12, tw + 8, 15);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    }
+
     // 6. Caliper Graphics
     const drawCaliper = (p1, p2, dist, color = '#22d3ee') => {
       const [cp1x, cp1y] = toCanvas(p1[0], p1[1]);
@@ -291,6 +336,7 @@ function SlicePanel({ view, label, accentColor, maximizedView, onToggleMaximize 
     activeCaliper,
     measurements,
     sliceIndex,
+    activeLandmark,
     drawingColor,
     brushSize,
     eraserSize,
